@@ -80,7 +80,7 @@ public class FileChecker {
      * Keeps references to the files in the source-folder. Allows for more efficient
      * data processing.
      */
-    private HashMap<String, FileData> library;
+    private HashMap<String, FileData> sourceLibrary;
     
     /**
      * Whether or not the file checker is already running.
@@ -113,7 +113,7 @@ public class FileChecker {
         }
         
         INTERVAL = interval;
-        library = new HashMap<>();
+        sourceLibrary = new HashMap<>();
         bussy = false;
         
         loadLibrary();
@@ -137,7 +137,7 @@ public class FileChecker {
         //Library exists! Parse the lines in the library to usable formats.
         for(String s : red.getDataStringLines()){
             String[] params = s.split("\\|\\|");
-            library.put(params[0], new FileData(params[0], Long.parseLong(params[1]), Long.parseLong(params[2])));
+            sourceLibrary.put(params[0], new FileData(params[0], Long.parseLong(params[1]), Long.parseLong(params[2])));
         }
     }
     
@@ -170,21 +170,21 @@ public class FileChecker {
             buildLibrary(newLibrary, newFiles, folders, emptyFolders, ORIGIN, ORIGIN.getAbsolutePath());
             
             // Check if the source disk/folder was changed. If so, a new library has to be stored.
-            change = newLibrary.size() != library.size() || newFiles.size() > 0;
+            change = newLibrary.size() != sourceLibrary.size() || newFiles.size() > 0;
             
             // The mirror.
             HashMap<String, FileData> mirror = new HashMap<>();
             buildLibrary(mirror, null, null, emptyFolders, MIRROR, MIRROR.getAbsolutePath());
 
             // Do the actual mirroring.
-            cleanData(mirror, newLibrary, emptyFolders);
-            copyNewFiles(newFiles);
-            copyMissingData(mirror, newLibrary, newFiles);
+            copyNewFiles(mirror, newFiles);
+            HashMap<String, FileData> missing = cleanData(mirror, newLibrary, emptyFolders);
+            copyMissingData(missing);
             updateTempFolder(tempFolders, folders);
             
             // Make it easier for GC to garbage collect...
-            library.clear();
-            library = newLibrary;
+            sourceLibrary.clear();
+            sourceLibrary = newLibrary;
             mirror.clear();
             newFiles.clear();
             folders.clear();
@@ -290,15 +290,14 @@ public class FileChecker {
      * @param newLibrary Map containing all the files currently known to be on the source disk/folder
      * @param newFiles Files of which we are certain that they are not on the mirror, as they were newly added or updated.
      */
-    private void copyMissingData(HashMap<String, FileData> mirror, HashMap<String, FileData> newLibrary, ArrayList<FileData> newFiles) {
+    private void copyMissingData(HashMap<String, FileData> missing) {
         // No lock available means it is not safe to continue execution. Exit program.
         if(!LOCK.exists())
             System.exit(0);
 
         // Copy missing files to the mirror.
-        for(String path : newLibrary.keySet()) {
-            if(!mirror.containsKey(path) && !newFiles.contains(newLibrary.get(path)))
-                FileIO.copy(ORIGIN.getAbsolutePath() + path, MIRROR.getAbsolutePath() + path);
+        for(String path : missing.keySet()) {
+            FileIO.copy(ORIGIN.getAbsolutePath() + path, MIRROR.getAbsolutePath() + path);
         }
     }
     
@@ -306,14 +305,19 @@ public class FileChecker {
      * Copy newly added or updated data from the source disk/folder to the mirror.
      * @param newFiles Files of which we are certain that they are newly added or updated.
      */
-    private void copyNewFiles(ArrayList<FileData> newFiles) {
+    private void copyNewFiles(HashMap<String, FileData> target, ArrayList<FileData> newFiles) {
         // No lock available means it is not safe to continue execution. Exit program.
         if(!LOCK.exists())
             System.exit(0);
 
         // Copy the new files to the mirror.
-        for(FileData nf : newFiles)
+        for(FileData nf : newFiles) {
             FileIO.copy(ORIGIN.getAbsolutePath() + nf.getPath(), MIRROR.getAbsolutePath() + nf.getPath(), BUFFER_MULTIPLIER * FileIO.DEFAULT_BUFFER_SIZE);
+            
+            if(!target.containsKey(nf.getPath())) {
+                target.put(nf.getPath(), nf);
+            }
+        }
     }
     
     /**
@@ -323,7 +327,10 @@ public class FileChecker {
      * @param newLibrary Map containing references to all files on the source disk/folder.
      * @param emptyFolders All folders which were found to be empty.
      */
-    private void cleanData(HashMap<String, FileData> mirror, HashMap<String, FileData> newLibrary, HashMap<String, FileData> emptyFolders) {
+    private HashMap<String, FileData> cleanData(HashMap<String, FileData> mirror, HashMap<String, FileData> newLibrary, HashMap<String, FileData> emptyFolders) {
+        // For efficiency, find out what files are missing on the mirror
+        HashMap<String, FileData> missing = new HashMap<>(newLibrary);
+
         // No lock available means it is not safe to continue execution. Exit program.
         if(!LOCK.exists())
             System.exit(0);
@@ -331,14 +338,20 @@ public class FileChecker {
         // Remove data that should not exist on the mirror.
         for(FileData fd : mirror.values()) {
             FileData inLib = newLibrary.get(fd.getPath());
-            if(inLib == null && LOCK.exists())
+            if(inLib == null && LOCK.exists()) {
                 FileIO.delete(new File(MIRROR.getAbsolutePath() + fd.getPath()));
+            } else if(LOCK.exists() && inLib != null){
+                missing.remove(inLib.getPath());
+            }
         }
 
         // Remove folders that are empty.
         for(FileData fd : emptyFolders.values()) {
             FileIO.delete(new File(MIRROR.getAbsolutePath() + fd.getPath()));
+            FileIO.delete(new File(ORIGIN.getAbsolutePath() + fd.getPath()));
         }
+        
+        return(missing);
     }
     
     /**
@@ -355,7 +368,7 @@ public class FileChecker {
             out = new PrintStream(new File(path + ".tmp"));
 
             // Print the library values.
-            for(FileData dat : library.values())
+            for(FileData dat : sourceLibrary.values())
                 out.println(dat.toString());
 
             out.close();
@@ -408,9 +421,9 @@ public class FileChecker {
         String path = getPath(f, root);
         FileData found = new FileData(path, f.lastModified(), f.length());
         newLibrary.put(found.getPath(), found);
-
+        
         if(newFiles != null) {
-            FileData known = library.get(found.getPath());
+            FileData known = sourceLibrary.get(found.getPath());
             if(known == null || !known.equals(found))
                 newFiles.add(found);
         }

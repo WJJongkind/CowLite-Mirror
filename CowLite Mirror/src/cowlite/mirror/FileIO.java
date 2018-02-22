@@ -99,6 +99,7 @@ public class FileIO {
         FileChannel fci = null;
         FileChannel fco = null;
         try{
+            createFile(target);
             is = new FileInputStream(source);
             os = new FileOutputStream(target);
 
@@ -167,6 +168,15 @@ public class FileIO {
      */
     public static void createDirectory(File file) {
         file.mkdirs();
+    }
+    
+    public static void createFile(String path) throws Exception {
+       createFile(new File(path));
+    }
+    
+    public static void createFile(File file) throws Exception {
+        createDirectory(file.getParentFile());
+        file.createNewFile();
     }
     
     private static class FastReader extends Thread {
