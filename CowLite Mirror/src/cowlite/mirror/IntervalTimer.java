@@ -22,6 +22,7 @@ package cowlite.mirror;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -85,6 +86,7 @@ public class IntervalTimer implements ActionListener
         */
         for(FileChecker checker : checkers) {
             CHECKERS.put(checker, 0);
+            QUEUE.add(checker);
         }
         
         // Decide the number of threads that should be used.
@@ -112,12 +114,17 @@ public class IntervalTimer implements ActionListener
             System.exit(0);
         
         // Clear the queue
+        ArrayList<FileChecker> clearedFromQueue = new ArrayList<>();
         for(FileChecker checker : QUEUE) {
-            if(THREADS.tryAcquire())
+            if(THREADS.tryAcquire()) {
+                clearedFromQueue.add(checker);
                 runChecker(checker);
-            else
+            }
+            else {
                 return;
+            }
         }
+        QUEUE.removeAll(clearedFromQueue);
         
         /* 
             Iterate over all checkers and add one tick to their associated ticks.
@@ -143,11 +150,14 @@ public class IntervalTimer implements ActionListener
      * @param checker The checker that should be started.
      */
     private void runChecker(FileChecker checker) {
+        System.out.println(CHECKERS.get(checker));
+        System.out.println(checker.getInterval());
         new Thread(){
             @Override
             public void run() {
                 CHECKERS.replace(checker, 0);
-                checker.checkFiles();  
+                System.out.println("Replaced");
+                checker.fullFileCheck();  
                 THREADS.release();
             }
         }.start();

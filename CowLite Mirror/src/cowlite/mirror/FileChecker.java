@@ -18,6 +18,7 @@
  */
 package cowlite.mirror;
 
+import cowlite.mirror.DirectoryWatcher.DirectoryEvent;
 import filedatareader.FileDataReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -25,6 +26,7 @@ import java.io.PrintStream;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JFileChooser;
@@ -70,6 +72,9 @@ public class FileChecker {
      */
     private final int INTERVAL;
     
+    private final int AGE_BUFFER;
+    
+    
     /**
      * The lock file. This file is read multiple times when the filechecker is run
      * in order to make sure that the source folder/disk still exists or is alive.
@@ -87,6 +92,8 @@ public class FileChecker {
      */
     private boolean bussy;
     
+    private boolean monitoring = false;
+    
     /**
      * Instantiates a new FileChecker object and if available, load the library for this filechecker.
      * @param pathOrigin Path to the source for the mirror: the folder/disk that should be duplicated.
@@ -95,9 +102,10 @@ public class FileChecker {
      * @param bufferMultiplier Multiplier for the buffer block-size. Default buffer block-size is 8192.
      *                         A multiplier size of 2 will make the block-size 16384 bytes.
      * @param interval The interval at which the file checker should run.
+     * @param ageBuffer The mean maximum age in timed event queues.
      * @throws Exception When the lock-file could not be created or the origin, mirror or temp_folder are not existing folders.
      */
-    public FileChecker(String pathOrigin, String pathMirror, String tempPath, int bufferMultiplier, int interval) throws Exception {
+    public FileChecker(String pathOrigin, String pathMirror, String tempPath, int bufferMultiplier, int interval, int ageBuffer) throws Exception {
         ORIGIN = new File(pathOrigin);
         MIRROR = new File(pathMirror);
         TEMP_FOLDER = new File(tempPath);
@@ -107,6 +115,7 @@ public class FileChecker {
         }
         
         BUFFER_MULTIPLIER = bufferMultiplier;
+        AGE_BUFFER = ageBuffer;
         
         if(BUFFER_MULTIPLIER < 1) {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 1.");
@@ -141,6 +150,51 @@ public class FileChecker {
         }
     }
     
+    public void startMonitoring(boolean threaded) throws Exception {
+        if(threaded) {
+            Thread t = new Thread(new Runnable(){
+                @Override
+                public void run() {
+                    try {
+                        startWatching();
+                    }catch(Exception e){
+                       e.printStackTrace();
+                    }
+                }
+            });
+            
+            t.start();
+        } else {
+            startWatching();
+        }
+    }
+    
+    private void startWatching() throws Exception {
+        monitoring = true;
+        DirectoryWatcher watcher = new DirectoryWatcher(ORIGIN.getAbsolutePath());
+        watcher.start();
+        
+        while(monitoring) {
+            List<DirectoryEvent> events = watcher.takeEvents(AGE_BUFFER, true);
+            
+            for(DirectoryEvent e : events) {
+                System.out.println(e.getType() + "   " + e.getFile().getAbsolutePath());
+                String relativePath = getPath(e.getFile(), ORIGIN.getAbsolutePath());
+                if(e.getType() == DirectoryEvent.FILE_CREATE || e.getType() == DirectoryEvent.FILE_MODIFY) {
+                    if(e.getFile().isDirectory()) {
+                        FileIO.createDirectory(MIRROR.getAbsolutePath() + relativePath);
+                    } else {
+                        FileIO.copy(e.getFile(), new File(MIRROR.getAbsolutePath() + relativePath));
+                    }
+                    
+                    sourceLibrary.put(relativePath, new FileData(relativePath, e.getFile().lastModified(), e.getFile().length()));
+                } else if(e.getType() == DirectoryEvent.FILE_DELETE) {
+                    FileIO.delete(MIRROR.getAbsolutePath() + relativePath);
+                }
+            }
+        }
+    }
+    
     /**
      * Main function call: this method will make sure a number of things are done.
      * First, it checks if the object is not already doing a file-check. If not,
@@ -148,7 +202,7 @@ public class FileChecker {
      * disk/folder. Then, it will copy new files and missing data to the mirror. Any
      * files in the temp folder are also added to both the source folder/disk and the mirror.
      */
-    public void checkFiles() {
+    public void fullFileCheck() {
         if(!bussy) {
             // Lock the file checker
             bussy = true;
