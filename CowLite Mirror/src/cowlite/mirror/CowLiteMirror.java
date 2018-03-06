@@ -68,7 +68,6 @@ public class CowLiteMirror {
             int bufferMultiplier = Integer.parseInt(params[2]);
             int timerInterval = Integer.parseInt(params[3]);
             String tempPath = params[4];
-            int agedBuffer = Integer.parseInt(params[5]);
             
             //Make sure the mirror does not conflict
             boolean legal = true;
@@ -81,17 +80,12 @@ public class CowLiteMirror {
                 roots.add(origin);
                 roots.add(mirror);
                 roots.add(tempPath);
-                checkers.add(new FileChecker(origin, mirror, tempPath, bufferMultiplier, timerInterval, agedBuffer));
+                checkers.add(new FileChecker(origin, mirror, tempPath, bufferMultiplier, timerInterval));
             }
         }
         
         // Start the timer, which will run the filecheckers.
         timer = new IntervalTimer(checkers, maxcores);
-        
-        // Start monitoring
-        for(FileChecker c : checkers) {
-            c.startMonitoring(true);
-        }
         
         // To prevent the application from stopping prematurely...
         CountDownLatch latch = new CountDownLatch(1);
