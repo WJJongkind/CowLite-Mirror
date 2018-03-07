@@ -65,7 +65,7 @@ public class CowLiteMirror {
             String[] params = s.split("\\|\\|");
             String origin = params[0];
             String mirror = params[1];
-            int bufferMultiplier = Integer.parseInt(params[2]);
+            double bufferMultiplier = Double.parseDouble(params[2]);
             int timerInterval = Integer.parseInt(params[3]);
             String tempPath = params[4];
             

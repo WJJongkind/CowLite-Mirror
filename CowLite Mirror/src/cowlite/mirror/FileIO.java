@@ -66,7 +66,7 @@ public class FileIO {
      * @param buff Multiplier for the buffer that should be used. The buffer has a size of
      *             8192 bytes. A multiplier of 2 will  mean the buffer size will be 16384 bytes.
      */
-    public static void copy(String source, String target, int buff) {
+    public static void copy(String source, String target, double buff) {
         copy(new File(source), new File(target), buff);
     }
     
@@ -90,7 +90,7 @@ public class FileIO {
      * @param buff Multiplier for the buffer that should be used. The buffer has a size of
      *             8192 bytes. A multiplier of 2 will  mean the buffer size will be 16384 bytes.
      */
-    public static void copy(File source, File target, int buff) {
+    public static void copy(File source, File target, double buff) {
         FileInputStream is = null;
         FileOutputStream os = null;
         FileChannel fci = null;
@@ -103,7 +103,7 @@ public class FileIO {
             fci = is.getChannel();
             fco = os.getChannel();
 
-            ByteBuffer buffer = ByteBuffer.allocate(buff * DEFAULT_BUFFER_SIZE);
+            ByteBuffer buffer = ByteBuffer.allocate((int)Math.round(buff * DEFAULT_BUFFER_SIZE));
 
             while (true) {
                 int read = fci.read(buffer);

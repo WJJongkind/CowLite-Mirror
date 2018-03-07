@@ -125,6 +125,7 @@ public class IntervalTimer implements ActionListener
         */
         for(FileChecker checker : CHECKERS.keySet()) {
             CHECKERS.replace(checker, CHECKERS.get(checker) + 1);
+            System.out.println(checker.getInterval() + "    " + CHECKERS.get(checker));
             
             // Try to a acquire a thread
             if(CHECKERS.get(checker) == checker.getInterval() && THREADS.tryAcquire()) {
@@ -146,9 +147,14 @@ public class IntervalTimer implements ActionListener
         new Thread(){
             @Override
             public void run() {
-                CHECKERS.replace(checker, 0);
-                checker.checkFiles();  
-                THREADS.release();
+                try {
+                    CHECKERS.replace(checker, 0);
+                    checker.checkFiles();  
+                    THREADS.release();
+                } catch(Exception e) {
+                    e.printStackTrace();
+                    THREADS.release();
+                }
             }
         }.start();
     }
