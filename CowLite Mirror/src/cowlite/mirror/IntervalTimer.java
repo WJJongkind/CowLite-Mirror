@@ -22,9 +22,9 @@ package cowlite.mirror;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.Semaphore;
 import javax.swing.JFileChooser;
 import javax.swing.Timer;
@@ -78,7 +78,7 @@ public class IntervalTimer implements ActionListener
      * will use one core for each FileChecker, or the maximum amount of system cores available if
      * there are too many file checkers.
      */
-    public IntervalTimer(List<FileChecker> checkers, int maxcores)
+    public IntervalTimer(ArrayList<FileChecker> checkers, int maxcores)
     {
         /*
             Adding the checkers to the hashmap which is used to track the amount of ticks that they had since their last run.
