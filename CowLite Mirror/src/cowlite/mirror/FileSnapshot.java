@@ -7,13 +7,12 @@ package cowlite.mirror;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -27,25 +26,6 @@ public class FileSnapshot
     private long lastModified;
     private boolean directory;
     private final String name;
-    
-    public static void main(String[] args) {
-        FileSnapshot s1 = new FileSnapshot(new File("C:\\Users\\Wessel\\Desktop\\test\\Halestorm"));
-        FileSnapshot s2 = new FileSnapshot(new File("C:\\Users\\Wessel\\Desktop\\test\\mirror"));
-        s1.update(null,null, null);
-        s2.update(null, null, null);
-        
-        ArrayList<FileSnapshot> missing = new ArrayList<>();
-        ArrayList<FileSnapshot> garbage = new ArrayList<>();
-        s2.compareTo(s1, missing, garbage);
-        
-        for(FileSnapshot s : missing) {
-            System.out.println(s.getFile());
-        }
-        System.out.println("------------------------------");
-        for(FileSnapshot s : garbage) {
-            System.out.println(s.getFile());
-        }
-    }
     
     public FileSnapshot(File f) {
         this.file = f;
@@ -84,7 +64,7 @@ public class FileSnapshot
     }
     
     private void checkChildren(List<FileSnapshot> deleted, List<FileSnapshot> added, List<FileSnapshot> updated) {
-        ArrayList<FileSnapshot> deletedChildren = new ArrayList<>(children.values());
+        List<FileSnapshot> deletedChildren = new ArrayList<>(children.values());
         
         File[] files = file.listFiles();
         if(files != null) {
@@ -95,7 +75,7 @@ public class FileSnapshot
                     deletedChildren.remove(snapshot);
                 } else {
                     FileSnapshot newSnapshot = new FileSnapshot(f);
-                    children.put(f.getName(), newSnapshot);
+                    children.put(newSnapshot.getName(), newSnapshot);
                     newSnapshot.update(deleted, added, updated);
                     
                     if(added != null) {
@@ -147,7 +127,7 @@ public class FileSnapshot
             return;
         }
         
-        LinkedList<String> childrenNames = new LinkedList<>(children.keySet());
+        Set<String> childrenNames = children.keySet();
         HashMap<String, FileSnapshot> otherChildren = new HashMap<>(other.getChildren());
         
         for(String s : childrenNames) {
