@@ -24,27 +24,30 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.LinkedList;
 
 /**
- * This class is used for file input and output (such as copying files, deletingfiles). Numerous
- * methods are offered for copying and deleting files, creating new files, creating a folder with all
- * subdirectories etc.
- * @author Wessel Jongkind
- * @version 2018-02-18
+ * This class is used for file input and output (such as copying files, deleting files). Numerous
+ * methods are offered for copying and deleting files, creating new files and creating a folder with all
+ * subdirectories.
+ * 
+ * @author Wessel Jelle Jongkind
+ * @version 2018-03-13 (yyyy-mm-dd)
  */
 public class FileIO {
-    /**
-     * The default and minimum size of the buffer. It is highly recommended that this
-     * buffer size or a multiple of it is used.
-     */
-    public static final int DEFAULT_BUFFER_SIZE = 1024;
     
     /**
-     * Maximum amount of attempts to remove files.
+     * The default and minimum size of the buffer. The size of this buffer can
+     * be multiplied by any double, however it is recommended that only whole
+     * numbers are used.
      */
-    private static final int MAX_ATTEMPTS = 10;
+    public static final int DEFAULT_BUFFER_SIZE = 1024;
     
     /**
      * Copy a file from the given input filepath to the given output filepath. If
@@ -52,8 +55,9 @@ public class FileIO {
      * also automatically created.
      * @param source Path to the file that should be copied.
      * @param target Path to the location of where the file should be copied to.
+     * @throws java.io.IOException When the file could not be copied due to IO errors.
      */
-    public static void copy(String source, String target) {
+    public static void copy(String source, String target) throws IOException {
         copy(new File(source), new File(target));
     }
     
@@ -63,10 +67,11 @@ public class FileIO {
      * also automatically created.
      * @param source Path to the file that should be copied.
      * @param target Path to the location of where the file should be copied to.
-     * @param buff Multiplier for the buffer that should be used. The buffer has a size of
-     *             8192 bytes. A multiplier of 2 will  mean the buffer size will be 16384 bytes.
+     * @param buff Multiplier for the buffer that should be used. The buffer has a default size of
+     *             1024 bytes. A multiplier of 2 will  mean the buffer size will be 2048 bytes.
+     * @throws java.io.IOException When the file could not be copied due to IO errors.
      */
-    public static void copy(String source, String target, double buff) {
+    public static void copy(String source, String target, double buff) throws IOException {
         copy(new File(source), new File(target), buff);
     }
     
@@ -76,21 +81,25 @@ public class FileIO {
      * also automatically created.
      * @param source The file that should be copied.
      * @param target The target to which the source file should be copied.
+     * @throws java.io.IOException When the file could not be copied due to IO errors.
      */
-    public static void copy(File source, File target) {
+    public static void copy(File source, File target) throws IOException {
         copy(source, target, DEFAULT_BUFFER_SIZE);
     }
     
     /**
      * Copy a file from the given source file to the given target file. If
      * the target filepath is in a directory that does not yet exist, all subdirectories are
-     * also automatically created.
+     * also automatically created. This method uses {@code java.nio.ByteBuffer} and is
+     * made for making the copying of files easier.
      * @param source The file that should be copied.
      * @param target The target to which the source file should be copied.
-     * @param buff Multiplier for the buffer that should be used. The buffer has a size of
-     *             8192 bytes. A multiplier of 2 will  mean the buffer size will be 16384 bytes.
+     * @param buff Multiplier for the buffer that should be used. The buffer has a default size of
+     *             1024 bytes. A multiplier of 2 will  mean the buffer size will be 2048 bytes.
+     * 
+     * @throws java.io.IOException When the file could not be copied due to IO errors.
      */
-    public static void copy(File source, File target, double buff) {
+    public static void copy(File source, File target, double buff) throws IOException {
         FileInputStream is = null;
         FileOutputStream os = null;
         FileChannel fci = null;
@@ -114,40 +123,73 @@ public class FileIO {
                 fco.write(buffer);
                 buffer.clear();
             }
-        }catch(Exception e){
-            e.printStackTrace();
+        }catch(IOException e){
+            throw e;
         } finally {
+            if(fci != null) {
+                fci.close();
+            }
+            if(fco != null) {
+                fco.close();
+            }
             if(is != null)
                 try {
                     is.close();
-            } catch (IOException ex) {
-                Logger.getLogger(FileIO.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            } catch (IOException ex) {}
             if(os != null)
                 try {
                     os.close();
-            } catch (IOException ex) {
-                Logger.getLogger(FileIO.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            } catch (IOException ex) {}
         }
     }
     
     /**
-     * Delete the file at the given filepath. Does nothing if there is no file at
-     * the given filepath.
-     * @param path Path to the file that should be deleted.
+     * Delete the file or directory at the given {@code Path}. Does nothing if there is no file at
+     * the given {@code Path}.
+     * 
+     * @param f Path to the file that should be deleted.
+     * @throws java.io.IOException When IO errors occur.
      */
-    public static void delete(String path) {
-        delete(new File(path));
+    public static void delete(File f) throws IOException {
+        delete(f.getAbsolutePath());
     }
     
     /**
-     * Delete the given file. Does nothing if the file does not exist.
-     * @param file The file to be deleted.
+     * Delete the file or directory at the given {@code Path}. Does nothing if there is no file at
+     * the given {@code Path}.
+     * 
+     * @param path Path to the file that should be deleted.
+     * @throws java.io.IOException When IO errors occur.
      */
-    public static void delete(File file) {
-        for(int i = 0; i < MAX_ATTEMPTS && file.exists(); i++) {
-            file.delete();
+    public static void delete(String path) throws IOException {
+        delete(Paths.get(path));
+    }
+    
+    /**
+     * Delete the given file or directory and all subdirectories. Does nothing if the file does not exist.
+     * 
+     * @param path The path that denotes the file/folder that has to be removed.
+     * @throws java.io.IOException When IO errors occur.
+     */
+    public static void delete(Path path) throws IOException {
+        LinkedList<Path> remove = new LinkedList<>();
+        
+        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                remove.add(0, dir);
+                return FileVisitResult.CONTINUE;
+            }
+            
+            @Override
+            public FileVisitResult visitFile(Path dir, BasicFileAttributes attrs) throws IOException {
+                remove.add(0, dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        
+        for(Path p : remove) {
+            Files.delete(p);
         }
     }
     
@@ -170,18 +212,18 @@ public class FileIO {
     /**
      * Creates the file to which the given path is pointing. Does nothing if the file already exists.
      * @param path The path at which the new file should be created.
-     * @throws Exception When the file could not be created.
+     * @throws IOException When the file could not be created.
      */
-    public static void createFile(String path) throws Exception {
+    public static void createFile(String path) throws IOException {
        createFile(new File(path));
     }
     
     /**
      * Creates the file to which the given File object is pointing. Does nothing if the file already exists.
      * @param file The file that has to be created.
-     * @throws Exception If the file could not be created.
+     * @throws IOException If the file could not be created.
      */
-    public static void createFile(File file) throws Exception {
+    public static void createFile(File file) throws IOException {
         createDirectory(file.getParentFile());
         file.createNewFile();
     }

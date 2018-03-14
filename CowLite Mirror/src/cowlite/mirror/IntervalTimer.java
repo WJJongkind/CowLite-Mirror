@@ -158,5 +158,4 @@ public class IntervalTimer implements ActionListener
             }
         }.start();
     }
-    
 }

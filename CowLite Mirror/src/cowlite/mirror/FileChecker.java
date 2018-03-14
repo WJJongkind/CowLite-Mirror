@@ -40,7 +40,7 @@ import javax.swing.filechooser.FileSystemView;
  * This means that any files that exist on the mirror but not on the source will be removed.
  * 
  * @author Wessel Jongkind
- * @version 2018-02-17
+ * @version 2018-03-14
  */
 public class FileChecker {
     /**
@@ -97,9 +97,10 @@ public class FileChecker {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
         }
         
-        ORIGIN = new FileSnapshot(new File(pathOrigin));
-        MIRROR = new FileSnapshot(new File(pathMirror));
-        TEMP_FOLDER = new FileSnapshot(new File(tempPath));
+        // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
+        ORIGIN = new FileSnapshot(Paths.get(pathOrigin));
+        MIRROR = new FileSnapshot(Paths.get(pathMirror));
+        TEMP_FOLDER = new FileSnapshot(Paths.get(tempPath));
         ORIGIN.update(null, null, null);
         MIRROR.update(null, null, null);
         TEMP_FOLDER.update(null, null, null);
@@ -114,7 +115,7 @@ public class FileChecker {
         loadLibrary();
         
         //Create a lock file which is used to quit the application if a folder should not be accessible.
-        LOCK = new File(ORIGIN.getFile().getAbsolutePath() + "\\" + new File(getLibraryPath()).getName() + ".lock");
+        LOCK = new File(ORIGIN.getFile().toString() + "\\" + new File(getLibraryPath()).getName() + ".lock");
         LOCK.createNewFile();
     }
     
@@ -137,11 +138,9 @@ public class FileChecker {
             stored.put(params[0], params);
         }
         
+        // Compare the FileSnapshots to the data that was stored
         ArrayList<FileSnapshot> updated = new ArrayList<>();
-        
-        FileSnapshot snapshot = ORIGIN;
-        
-        crossReferenceLibrary(stored, snapshot, updated);
+        crossReferenceLibrary(stored, ORIGIN, updated);
         
         for(String path : stored.keySet()) {
             deleteFromMirror(path);
@@ -156,12 +155,24 @@ public class FileChecker {
         }
     }
     
+    /**
+     * With this method, the data from stored {@code FileSnapshot} files are cross-referenced 
+     * newly initialized {@code FileSnapshot}s. Any changes in the data from the
+     * stored {@code FileSnapshot} file are added to the {@code List} in which
+     * the chnages are stored. 
+     * 
+     * @param stored {@code Map} containing the stored filepaths as keys, and the 
+     *               filepath, last modified date (in UNIX Epoch) and filesize in
+     *               {@code String} array respectively.
+     * @param snapshot The {@code FileSnapshot} to which the stored data should be compared.
+     * @param updated The {@code List} in which changes should be stored.
+     */
     private void  crossReferenceLibrary(Map<String, String[]> stored, FileSnapshot snapshot, List<FileSnapshot> updated) {
-        String[] data = stored.get(snapshot.getFile().getAbsolutePath());
+        String[] data = stored.get(snapshot.getFile().toString());
         
         if(data != null) {
-            stored.remove(snapshot.getFile().getAbsolutePath());
-            if(Long.parseLong(data[1]) != snapshot.getLastModified() || Long.parseLong(data[2]) != snapshot.getSize()) {
+            stored.remove(snapshot.getFile().toString());
+            if(Long.parseLong(data[1]) != snapshot.getModifiedTime()|| Long.parseLong(data[2]) != snapshot.getSize()) {
                 updated.add(snapshot);
             }
         } else {
@@ -179,6 +190,7 @@ public class FileChecker {
      * it will remove any files that exist on the mirror and don't exist on the source
      * disk/folder. Then, it will copy new files and missing data to the mirror. Any
      * files in the temp folder are also added to both the source folder/disk and the mirror.
+     * @throws java.io.IOException When IO errors occur.
      */
     public void checkFiles() throws IOException {
         if(!bussy) {
@@ -219,7 +231,7 @@ public class FileChecker {
             }
             
             for(FileSnapshot s : garbage) {
-                deleteFromMirror(s);
+                FileIO.delete(s.getFile());
             }
             
             if(!added.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
@@ -230,33 +242,82 @@ public class FileChecker {
         bussy = false;
     }
     
+    /**
+     * Copy the given {@code File} that is present in the source-directory or one of
+     * the subdirectories to the mirror directory. The relative path from the
+     * root-folder is kept:
+     * 
+     * For example;  C:\Test\ is the root folder that is being mirrored, and C:\Mirror\ is
+     * the root for the mirror. When copying C:\Test\foldera\folderb\file.mp4 to the
+     * mirror, it will be copied to C:\Mirror\foldera\folderb\file.mp4.
+     * @param f The {@code File} to be copied to the mirror.
+     */
     private void copyToMirror(File f) {
-        if(f.isFile()) {
-            FileIO.copy(f, new File(MIRROR.getFile().getAbsolutePath() + getPath(f, ORIGIN.getFile().getAbsolutePath())), BUFFER_MULTIPLIER);
-        } else {
-            FileIO.createDirectory(new File(MIRROR.getFile().getAbsolutePath() + getPath(f, ORIGIN.getFile().getAbsolutePath())));
+        try {
+            if(f.isFile()) {
+                FileIO.copy(f, new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())), BUFFER_MULTIPLIER);
+            } else {
+                FileIO.createDirectory(new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())));
+            }
+        }catch(IOException ex) {
+            ex.printStackTrace();
         }
     }
     
+    /**
+     * Copy the given {@code File} that is present in the source-directory or one of
+     * the subdirectories to the mirror directory. The relative path from the
+     * root-folder is kept:
+     * 
+     * For example;  C:\Test\ is the root folder that is being mirrored, and C:\Mirror\ is
+     * the root for the mirror. When copying C:\Test\foldera\folderb\file.mp4 to the
+     * mirror, it will be copied to C:\Mirror\foldera\folderb\file.mp4.
+     * @param s The {@code FileSnapshot} to be copied to the mirror.
+     */
     private void copyToMirror(FileSnapshot s) {
-        copyToMirror(s.getFile());
+        copyToMirror(new File(s.getFile().toString()));
     }
     
+    /**
+     * Delete the mirror of the file which the given {@code FileSnapshot} denotes
+     * from the mirror.
+     * 
+     * For example;  C:\Test\ is the root folder that is being mirrored, and C:\Mirror\ is
+     * the root for the mirror. When deleting the mirrored file of C:\Test\foldera\folderb\file.mp4,
+     * then C:\Mirror\foldera\folderb\file.mp4 will be removed.
+     * @param s The file to be removed to the mirror.
+     */
     private void deleteFromMirror(FileSnapshot s) {
-        deleteFromMirror(s.getFile());
+        deleteFromMirror(new File(s.getFile().toString()));
     }
     
-    private void deleteFromMirror(String s) {
-        deleteFromMirror(new File(s));
+    /**
+     * Delete the mirror of the file at which the given String is pointing, or does
+     * nothing  if the  string does not represent a path to a directory.
+     * 
+     * For example;  C:\Test\ is the root folder that is being mirrored, and C:\Mirror\ is
+     * the root for the mirror. When deleting the mirrored file of C:\Test\foldera\folderb\file.mp4,
+     * then C:\Mirror\foldera\folderb\file.mp4 will be removed.
+     * @param path The file to be removed to the mirror.
+     */
+    private void deleteFromMirror(String path) {
+        deleteFromMirror(new File(path));
     }
     
     private void deleteFromMirror(File f) {
-        FileIO.delete(MIRROR.getFile().getAbsolutePath() + getPath(f, ORIGIN.getFile().getAbsolutePath()));
+        try {
+            FileIO.delete(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString()));
+        }catch(Exception e) {
+            e.printStackTrace();
+        }
     }
     
     /**
      * Store the library to the disk. This significantly improves first-iteration performance
      * when the program is restarted.
+     * 
+     * @throws IOException When the library could not be stored, due to lack of
+     * access to the output file.
      */
     private void storeLibrary() throws IOException
     {
@@ -270,8 +331,9 @@ public class FileChecker {
 
         // Remove the old library file.
         File nf = new File(path);
-        if(nf.exists())
+        if(nf.exists()) {
             FileIO.delete(nf);
+        }
 
         // Rename the temporary library file.
         out.renameTo(nf);
@@ -289,11 +351,11 @@ public class FileChecker {
         FileSystemView fw = fr.getFileSystemView();
         
         // Generate path string
-        String originLetter = Paths.get(ORIGIN.getFile().getAbsolutePath()).getRoot().toString();
-        String mirrorLetter = Paths.get(MIRROR.getFile().getAbsolutePath()).getRoot().toString();
+        String originLetter = Paths.get(ORIGIN.getFile().toString()).getRoot().toString();
+        String mirrorLetter = Paths.get(MIRROR.getFile().toString()).getRoot().toString();
         String path = fw.getDefaultDirectory().getAbsolutePath() 
-                + "\\CowLite Mirror\\" + ORIGIN.getFile().getAbsolutePath().replace(originLetter, "").replace("\\", ".") 
-                + "-" + MIRROR.getFile().getAbsolutePath().replace(mirrorLetter, "").replace("\\", ".");
+                + "\\CowLite Mirror\\" + ORIGIN.getFile().toString().replace(originLetter, "").replace("\\", ".") 
+                + "-" + MIRROR.getFile().toString().replace(mirrorLetter, "").replace("\\", ".");
         
         return path;
     }
