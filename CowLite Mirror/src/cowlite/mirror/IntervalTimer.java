@@ -33,7 +33,7 @@ import javax.swing.Timer;
  * This class can be used to time the intervals at which filecheckers should be activated.
  * It does this multithreaded if requested. When too many threads are being used, the filecheckers
  * are added to a queue.
- * @author Wessel Jongkind
+ * @author Wessel Jelle Jongkind
  * @version 2018-02-18
  */
 public class IntervalTimer implements ActionListener

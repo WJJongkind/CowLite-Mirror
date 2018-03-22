@@ -39,7 +39,7 @@ import javax.swing.filechooser.FileSystemView;
  * Note: Files on the target-folder/disk (the mirror) will be kept in sync with the source.
  * This means that any files that exist on the mirror but not on the source will be removed.
  * 
- * @author Wessel Jongkind
+ * @author Wessel Jelle Jongkind
  * @version 2018-03-14
  */
 public class FileChecker {
@@ -378,6 +378,13 @@ public class FileChecker {
         return path;
     }
 
+    /**
+     * Returns the interval (in seconds) at which this {@code FileChecker} should be
+     * updated.
+     * 
+     * @return The interval (in seconds) at which this {@code FileChecker} should be
+     * updated.
+     */
     public int getInterval() {
         return INTERVAL;
     }

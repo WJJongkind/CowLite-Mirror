@@ -29,7 +29,7 @@ import javax.swing.filechooser.FileSystemView;
  * such as previously configured mirrors. Currently, it automatically starts all mirrors
  * but this should change soon when a GUI will be added to the project.
  * 
- * @author Wessel Jongkind
+ * @author Wessel Jelle Jongkind
  * @version 2018-02-17
  */
 public class CowLiteMirror {
