@@ -20,6 +20,7 @@ package cowlite.mirror;
 
 import filedatareader.FileDataReader;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileSystemView;
@@ -55,7 +56,7 @@ public class CowLiteMirror {
         ArrayList<FileChecker> checkers = new ArrayList<>();
         
         //Launch settings...
-        ArrayList<String> launchSettings = in.getDataStringLines();
+        List<String> launchSettings = in.getDataStringLines();
         int maxcores = Integer.parseInt(launchSettings.get(0));
         launchSettings.remove(0);
         

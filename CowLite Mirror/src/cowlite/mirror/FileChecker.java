@@ -112,11 +112,11 @@ public class FileChecker {
         INTERVAL = interval;
         bussy = false;
         
-        loadLibrary();
-        
         //Create a lock file which is used to quit the application if a folder should not be accessible.
         LOCK = new File(ORIGIN.getFile().toString() + "\\" + new File(getLibraryPath()).getName() + ".lock");
         LOCK.createNewFile();
+        
+        loadLibrary();
     }
     
     /**
@@ -253,6 +253,7 @@ public class FileChecker {
      * @param f The {@code File} to be copied to the mirror.
      */
     private void copyToMirror(File f) {
+        securityCheck();
         try {
             if(f.isFile()) {
                 FileIO.copy(f, new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())), BUFFER_MULTIPLIER);
@@ -275,6 +276,7 @@ public class FileChecker {
      * @param s The {@code FileSnapshot} to be copied to the mirror.
      */
     private void copyToMirror(FileSnapshot s) {
+        securityCheck();
         copyToMirror(new File(s.getFile().toString()));
     }
     
@@ -288,6 +290,7 @@ public class FileChecker {
      * @param s The file to be removed to the mirror.
      */
     private void deleteFromMirror(FileSnapshot s) {
+        securityCheck();
         deleteFromMirror(new File(s.getFile().toString()));
     }
     
@@ -301,14 +304,22 @@ public class FileChecker {
      * @param path The file to be removed to the mirror.
      */
     private void deleteFromMirror(String path) {
+        securityCheck();
         deleteFromMirror(new File(path));
     }
     
     private void deleteFromMirror(File f) {
+        securityCheck();
         try {
             FileIO.delete(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString()));
         }catch(Exception e) {
             e.printStackTrace();
+        }
+    }
+    
+    private void securityCheck() {
+        if(!LOCK.exists() || !new File(getPath(LOCK, MIRROR.getFile().toString())).exists()) {
+            System.exit(0);
         }
     }
     

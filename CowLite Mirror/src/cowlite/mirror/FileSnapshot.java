@@ -217,7 +217,7 @@ public class FileSnapshot
             that it has most likely been removed. Add it and it's children to the
             deleted list.
         */  
-        if(!checkAccess()) {
+        if(!checkAccess() && deleted != null) {
             deleted.addAll(children.values());
             deleted.add(this);
             return;
@@ -410,7 +410,7 @@ public class FileSnapshot
         PrintWriter out = null;
         
         try {
-            out = new PrintWriter(f);
+            out = new PrintWriter(f, "UTF-8");
             
             out.println(file + "||" + modifiedTime.toMillis() + "||" + size);
             
