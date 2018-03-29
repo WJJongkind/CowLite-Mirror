@@ -20,8 +20,9 @@ package filedatareader;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -144,19 +145,28 @@ public class FileDataReader
      * @throws IOException When the file is not accessible.
      */
     public void setPath(File f) throws IOException {
-        setPath(f.getAbsolutePath());
+        setPath(f.getAbsolutePath(), "UTF-8");
+    }
+    
+    public  void setPath(File f, String charset) throws IOException {
+        setPath(f.getAbsolutePath(), charset);
+    }
+    
+    public void setPath(String path) throws IOException {
+        setPath(path, "UTF-8");
     }
     
     /**
      * Set the path to an existing file which has to be read. All contents of the
      * file are immediately loaded into memory.
      * @param path Path to the file which has to be read.
+     * @param charset The CharSet of the file that is being used (usually UTF-8 or UTF-16).
      * @throws IOException When the file is not accessible.
      */
-    public void setPath(String path) throws IOException
+    public void setPath(String path, String charset) throws IOException
     {
         this.path = path;
-        readData();
+        readData(charset);
     }
     
     /**
@@ -164,16 +174,16 @@ public class FileDataReader
      * in {@link #data}. 
      * @throws IOException When the file is not accessible.
      */
-    private void readData() throws IOException
+    private void readData(String charset) throws IOException
     {
         data = new ArrayList<>();
-        try (FileReader fred = new FileReader(path)) {
-            BufferedReader bufred = new BufferedReader(fred);
+        try (FileInputStream is = new FileInputStream(new File(path));
+             InputStreamReader red = new InputStreamReader(is, charset);
+             BufferedReader bufred = new BufferedReader(red)) {
+            
             String dataline;
             while((dataline = bufred.readLine()) != null)
                 data.add(dataline);
-            
-            bufred.close();
         }
     }
     
