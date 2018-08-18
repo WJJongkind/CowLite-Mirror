@@ -69,6 +69,8 @@ public class FileChecker {
      */
     private final int INTERVAL;
     
+    private final long MAX_SIZE;
+    
     /**
      * The lock file. This file is read multiple times when the filechecker is run
      * in order to make sure that the source folder/disk still exists or is alive.
@@ -88,10 +90,12 @@ public class FileChecker {
      * @param bufferMultiplier Multiplier for the buffer block-size. Default buffer block-size is 8192.
      *                         A multiplier size of 2 will make the block-size 16384 bytes.
      * @param interval The interval at which the file checker should run.
+     * @param maxFileSize The maximum size of files that are to be checked.
      * @throws Exception When the lock-file could not be created or the origin, mirror or temp_folder are not existing folders.
      */
-    public FileChecker(String pathOrigin, String pathMirror, String tempPath, double bufferMultiplier, int interval) throws Exception {
+    public FileChecker(String pathOrigin, String pathMirror, String tempPath, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
         BUFFER_MULTIPLIER = bufferMultiplier;
+        MAX_SIZE = maxFileSize;
         
         if(BUFFER_MULTIPLIER < 0.01) {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
@@ -253,6 +257,10 @@ public class FileChecker {
      * @param f The {@code File} to be copied to the mirror.
      */
     private void copyToMirror(File f) {
+        if(!f.exists() || f.length() > MAX_SIZE) {
+            return;
+        }
+        
         securityCheck();
         try {
             if(f.isFile()) {
@@ -276,7 +284,6 @@ public class FileChecker {
      * @param s The {@code FileSnapshot} to be copied to the mirror.
      */
     private void copyToMirror(FileSnapshot s) {
-        securityCheck();
         copyToMirror(new File(s.getFile().toString()));
     }
     
@@ -290,7 +297,6 @@ public class FileChecker {
      * @param s The file to be removed to the mirror.
      */
     private void deleteFromMirror(FileSnapshot s) {
-        securityCheck();
         deleteFromMirror(new File(s.getFile().toString()));
     }
     
@@ -304,7 +310,6 @@ public class FileChecker {
      * @param path The file to be removed to the mirror.
      */
     private void deleteFromMirror(String path) {
-        securityCheck();
         deleteFromMirror(new File(path));
     }
     
