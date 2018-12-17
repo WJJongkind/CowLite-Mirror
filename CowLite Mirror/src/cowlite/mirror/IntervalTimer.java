@@ -84,7 +84,7 @@ public class IntervalTimer implements ActionListener
             Adding the checkers to the hashmap which is used to track the amount of ticks that they had since their last run.
         */
         for(FileChecker checker : checkers) {
-            CHECKERS.put(checker, 0);
+            CHECKERS.put(checker, checker.getInterval());
         }
         
         // Decide the number of threads that should be used.
