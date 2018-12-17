@@ -146,10 +146,6 @@ public class FileChecker {
         ArrayList<FileSnapshot> updated = new ArrayList<>();
         crossReferenceLibrary(stored, ORIGIN, updated);
         
-        for(String path : stored.keySet()) {
-            deleteFromMirror(path);
-        }
-        
         for(FileSnapshot s : updated) {
             copyToMirror(s);
         }
