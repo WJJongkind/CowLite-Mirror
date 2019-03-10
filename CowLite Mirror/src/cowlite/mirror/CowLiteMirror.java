@@ -70,13 +70,12 @@ public class CowLiteMirror {
             String mirror = params[1];
             double bufferMultiplier = Double.parseDouble(params[2]);
             int timerInterval = Integer.parseInt(params[3]);
-            String tempPath = params[4];
-            long maxFileSize = Long.parseLong(params[5]);
+            long maxFileSize = Long.parseLong(params[4]);
 
             //Make sure the mirror does not conflict
             boolean legal = true;
             for (String src : roots) {
-                if (src.contains(origin) || origin.contains(src) || src.contains(mirror) || mirror.contains(src) || src.contains(tempPath) || tempPath.contains(src)) {
+                if (src.contains(origin) || origin.contains(src) || src.contains(mirror) || mirror.contains(src)) {
                     legal = false;
                 }
             }
@@ -85,8 +84,7 @@ public class CowLiteMirror {
             if (legal) {
                 roots.add(origin);
                 roots.add(mirror);
-                roots.add(tempPath);
-                checkers.add(new FileChecker(origin, mirror, tempPath, bufferMultiplier, timerInterval, maxFileSize));
+                checkers.add(new FileChecker(origin, mirror, bufferMultiplier, timerInterval, maxFileSize));
             }
         }
 
