@@ -19,8 +19,11 @@
 package cowlite.mirror;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +89,10 @@ public class CowLiteMirror {
      * loaded.
      */
     public static void main(String[] args) throws Exception {
+        System.out.println(new File("").getAbsolutePath());
+        
+        
+        
         Map<PossibleArgument, String> arguments = new HashMap<>();
         List<String> missingArguments = new ArrayList<>(requiredArguments);
         

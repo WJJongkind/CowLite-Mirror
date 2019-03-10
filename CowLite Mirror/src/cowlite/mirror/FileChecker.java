@@ -95,10 +95,8 @@ public class FileChecker {
      * Instantiates a new FileChecker object and if available, load the library
      * for this filechecker.
      *
-     * @param pathOrigin Path to the source for the mirror: the folder/disk that
-     * should be duplicated.
-     * @param pathMirror Path to the mirror: the folder/disk that is a
-     * duplicate.
+     * @param origin File that denotes the path to the source/origin folder.
+     * @param mirror File that denotes the path to the mirror-folder.
      * @param bufferMultiplier Multiplier for the buffer block-size. Default
      * buffer block-size is 8192. A multiplier size of 2 will make the
      * block-size 16384 bytes.
@@ -108,8 +106,10 @@ public class FileChecker {
      * mirror or temp_folder are not existing folders.
      */
     public FileChecker(File origin, File mirror, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
+        bussy = true;
         BUFFER_MULTIPLIER = bufferMultiplier;
         MAX_SIZE = maxFileSize;
+        INTERVAL = interval;
 
         if (BUFFER_MULTIPLIER < 0.01) {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
@@ -118,28 +118,27 @@ public class FileChecker {
         // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
         ORIGIN = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
         MIRROR = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
+        MIRROR_NAME = makeMirrorName();
 
         if (!ORIGIN.isDirectory() || !MIRROR.isDirectory()) {
             throw new IllegalArgumentException("One or more of the selected filepaths is invalid.");
         }
         
         MIRROR.update(null, null, null);
-        ORIGIN.update(null, null, null);
-        
-        MIRROR_NAME = makeMirrorName();
-
-        INTERVAL = interval;
-        bussy = false;
+        if(new File(getLibraryPath()).exists()) { // If no known stored library of the mirror exists, then we dont want to update Origin.
+            ORIGIN.update(null, null, null);
+        }  
         
         loadLibrary();
+        bussy = false;
     }
     
     private String makeMirrorName() throws NoSuchAlgorithmException {
-        String unhashedName = ORIGIN.getFile().toFile().toString() + "-" + MIRROR.getFile().toFile().toString();
+        String unhashedName = ORIGIN.getFile().toFile().getAbsolutePath()+ "-" + MIRROR.getFile().toFile().getAbsolutePath();
         
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(unhashedName.getBytes(StandardCharsets.UTF_8));
-        return new String(Base64.getEncoder().encode(hash));
+        return new String(Base64.getEncoder().encode(hash)).replace("/", "slash").replace("+", "plus").replace("=", "equals");
     }
 
     /**
@@ -214,7 +213,7 @@ public class FileChecker {
      * to the mirror. Any files in the temp folder are also added to both the
      * source folder/disk and the mirror.
      */
-    public void checkFiles() {
+    public final void checkFiles() {
         if (!bussy) {
             // Lock the file checker
             bussy = true;
@@ -403,6 +402,8 @@ public class FileChecker {
         // Set the output stream to the correct folder.
         String path = getLibraryPath();
         File out = new File(path + ".tmp");
+        out.getParentFile().mkdirs();
+        out.createNewFile();
 
         // Print the library values.
         ORIGIN.store(out);
@@ -423,18 +424,7 @@ public class FileChecker {
      * @return Library to the library file.
      */
     private String getLibraryPath() {
-        // TODO memory leak?
-        // Obtain documents folder. Possibly this way causes memory leaks?
-        JFileChooser fr = new JFileChooser();
-        FileSystemView fw = fr.getFileSystemView();
-
-        // Generate path string
-        String originLetter = Paths.get(ORIGIN.getFile().toString()).getRoot().toString();
-        String mirrorLetter = Paths.get(MIRROR.getFile().toString()).getRoot().toString();
-        String path = fw.getDefaultDirectory().toString()
-                + File.separator + "CowLite Mirror" + File.separator + MIRROR_NAME;
-
-        return path;
+        return "mirrors" + File.separator + MIRROR_NAME + ".cm";
     }
 
     /**
