@@ -21,9 +21,14 @@ package cowlite.mirror;
 import filedatareader.FileDataReader;
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +50,8 @@ import javax.swing.filechooser.FileSystemView;
  * @version 2018-03-14
  */
 public class FileChecker {
+    
+    // MARK: - Properties
 
     /**
      * The source disk/folder which has to be duplicated.
@@ -73,16 +80,16 @@ public class FileChecker {
     private final long MAX_SIZE;
 
     /**
-     * The lock file. This file is read multiple times when the filechecker is
-     * run in order to make sure that the source folder/disk still exists or is
-     * alive.
+     * The name of the mirror.
      */
-    private final File LOCK;
-
+    private final String MIRROR_NAME;
+    
     /**
      * Whether or not the file checker is already running.
      */
     private boolean bussy;
+    
+    // MARK: - Object lifecycle
 
     /**
      * Instantiates a new FileChecker object and if available, load the library
@@ -100,7 +107,7 @@ public class FileChecker {
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(String pathOrigin, String pathMirror, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
+    public FileChecker(File origin, File mirror, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
         BUFFER_MULTIPLIER = bufferMultiplier;
         MAX_SIZE = maxFileSize;
 
@@ -109,24 +116,30 @@ public class FileChecker {
         }
 
         // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
-        ORIGIN = new FileSnapshot(Paths.get(pathOrigin));
-        ORIGIN.update(null, null, null);
-
-        MIRROR = new FileSnapshot(Paths.get(pathMirror));
-        MIRROR.update(null, null, null);
+        ORIGIN = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
+        MIRROR = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
 
         if (!ORIGIN.isDirectory() || !MIRROR.isDirectory()) {
             throw new IllegalArgumentException("One or more of the selected filepaths is invalid.");
         }
+        
+        MIRROR.update(null, null, null);
+        ORIGIN.update(null, null, null);
+        
+        MIRROR_NAME = makeMirrorName();
 
         INTERVAL = interval;
         bussy = false;
-
-        //Create a lock file which is used to quit the application if a folder should not be accessible.
-        LOCK = new File(ORIGIN.getFile().toString() + "\\" + new File(getLibraryPath()).getName() + ".lock");
-        LOCK.createNewFile();
-
+        
         loadLibrary();
+    }
+    
+    private String makeMirrorName() throws NoSuchAlgorithmException {
+        String unhashedName = ORIGIN.getFile().toFile().toString() + "-" + MIRROR.getFile().toFile().toString();
+        
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(unhashedName.getBytes(StandardCharsets.UTF_8));
+        return new String(Base64.getEncoder().encode(hash));
     }
 
     /**
@@ -302,7 +315,10 @@ public class FileChecker {
         securityCheck();
         try {
             File newFile = new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString()));
-            FileIO.delete(newFile);
+            
+            if(newFile.exists()) {
+                try { FileIO.delete(newFile); } catch (Exception e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
+            }
 
             if (f.isFile()) {
                 FileIO.copy(f, newFile, BUFFER_MULTIPLIER);
@@ -365,12 +381,13 @@ public class FileChecker {
     }
 
     private void securityCheck() {
-        try {
-            if (!LOCK.exists() || !new File(getRelativePath(LOCK, MIRROR.getFile().toString())).exists()) {
-                System.exit(0);
-            }
-        } catch(MalformedURLException e) {
-            e.printStackTrace();
+        if (!ORIGIN.getFile().toFile().exists()) {
+            System.err.println("Could not find source folder.");
+            System.exit(0);
+        }
+
+        if (!MIRROR.getFile().toFile().exists()) {
+            System.err.println("Could not find mirror folder.");
             System.exit(0);
         }
     }
@@ -405,7 +422,7 @@ public class FileChecker {
      *
      * @return Library to the library file.
      */
-    private String getLibraryPath() throws MalformedURLException {
+    private String getLibraryPath() {
         // TODO memory leak?
         // Obtain documents folder. Possibly this way causes memory leaks?
         JFileChooser fr = new JFileChooser();
@@ -414,9 +431,8 @@ public class FileChecker {
         // Generate path string
         String originLetter = Paths.get(ORIGIN.getFile().toString()).getRoot().toString();
         String mirrorLetter = Paths.get(MIRROR.getFile().toString()).getRoot().toString();
-        String path = fw.getDefaultDirectory().toURI().toURL().toString()
-                + "/CowLite Mirror/" + ORIGIN.getFile().toString().replace(originLetter, "")
-                + "-" + MIRROR.getFile().toString().replace(mirrorLetter, "");
+        String path = fw.getDefaultDirectory().toString()
+                + File.separator + "CowLite Mirror" + File.separator + MIRROR_NAME;
 
         return path;
     }
@@ -428,14 +444,14 @@ public class FileChecker {
      * @param root Root at which the path should start.
      * @return Relative path to a file from a root.
      */
-    private String getRelativePath(File f, String root) throws MalformedURLException {
-        String path = f.toURI().toURL().toString().replace(root, "");
+    private String getRelativePath(File f, String root) {
+        String path = f.getAbsolutePath().replace(root, "");
         if (path.equals("")) {
             return path;
         }
 
         if (!(path.charAt(0) + "").equals("/")) {
-            path = "/" + path;
+            path = File.separator + path;
         }
 
         return path;
