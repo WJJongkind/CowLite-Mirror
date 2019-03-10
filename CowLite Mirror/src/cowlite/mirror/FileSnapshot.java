@@ -191,11 +191,11 @@ public class FileSnapshot {
         this.isDirectory = attributes.isDirectory();
         this.size = attributes.size();
     }
-    
+
     public FileSnapshot(String path) throws IOException, IllegalArgumentException {
         this(Paths.get(new File(path).toURI()));
     }
-    
+
     public FileSnapshot(File f) throws IOException, IllegalArgumentException {
         this(Paths.get(f.toURI()));
     }
@@ -221,7 +221,8 @@ public class FileSnapshot {
      * @param updated The list in which modification events are recorded by
      * adding {@code FileSnapshot}s to the list of which the monitored directory
      * or file has been altered. If this parameter is null, then modification
-     * events are not recorded.
+     * events are not recorded. If a file has turned into a folder or vice
+     * versa, then it is also added to this list.
      * @throws IOException When the {@code FileSnapshot} could not be updated.
      * @see #checkChildren(List, List, List)
      */
@@ -242,51 +243,26 @@ public class FileSnapshot {
         FileTime modifiedTime = attributes.lastModifiedTime();
         boolean isDirectory = attributes.isDirectory();
         long newSize = attributes.size();
-        
+
         if (isDirectory) {
             if (!this.isDirectory && updated != null) {
                 updated.add(this);
             }
-            
+
             updateChildren(deleted, added, updated);
         } else if (!this.modifiedTime.equals(modifiedTime) || newSize != size) {
             if (this.isDirectory) {
                 children.clear();
             }
-            
-            if(updated != null) {
-                updated.add(this);
-            }
-        }
-        
-        this.isDirectory = isDirectory;
-        this.modifiedTime = modifiedTime;
-        this.size = newSize;
- /*
-        // Did the file represented by the snapshot change? If so, add it to the modified list.
-        if (!directory && (newModified.equals(modifiedTime)) || directory && !newIsDirectory) {
+
             if (updated != null) {
                 updated.add(this);
             }
-
-            // The file has changed, update metadata
-            modifiedTime = newModified;
-            directory = newIsDirectory;
-            size = attributes.size();
         }
 
-        // If this snapshot represents a directory, check it's children
-        if (directory) {
-            checkChildren(deleted, added, updated);
-        } else if (!children.isEmpty() && deleted != null) {
-            /*
-                The snapshot does not represent a directory anymore (usually happens
-                when the directory was deleted and replaced by a file that is named
-                identically)
-             */
-            /*deleted.addAll(children.values());
-            children.clear();
-        }*/
+        this.isDirectory = isDirectory;
+        this.modifiedTime = modifiedTime;
+        this.size = newSize;
     }
 
     /**
@@ -354,7 +330,7 @@ public class FileSnapshot {
                     if (added != null) {
                         added.add(newSnapshot);
                     }
-                    
+
                     newSnapshot.update(deleted, added, updated);
                 }
             }
