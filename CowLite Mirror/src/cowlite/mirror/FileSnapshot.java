@@ -346,7 +346,7 @@ public class FileSnapshot {
                 // If the snapshot exists, update it. If it does not, create a new one.
                 if (snapshot != null) {
                     snapshot.update(deleted, added, updated);
-                    deletedChildren.remove(snapshot);
+                    deletedChildren.remove(fileName); // The child is still there, therefore we can  remove it from deletedChildren
                 } else {
                     FileSnapshot newSnapshot = new FileSnapshot(p);
                     children.put(newSnapshot.getName(), newSnapshot);
