@@ -45,6 +45,8 @@ public class FileSnapshotTests {
     private ArrayList<FileSnapshot> added;
     private ArrayList<FileSnapshot> updated;
     private ArrayList<FileSnapshot> deleted;
+    private ArrayList<FileSnapshot> missingFiles;
+    private ArrayList<FileSnapshot> additionalFiles;
 
     // MARK: - Setup & teardown
     @Before
@@ -58,6 +60,8 @@ public class FileSnapshotTests {
             added = new ArrayList<>();
             updated = new ArrayList<>();
             deleted = new ArrayList<>();
+            missingFiles = new ArrayList<>();
+            additionalFiles = new ArrayList<>();
         } catch (Exception e) {
             e.printStackTrace();
             fail("Unexpected exception occured");
@@ -203,8 +207,47 @@ public class FileSnapshotTests {
             fail("unexpected exception occured"); // Fail test
         }
     }
+    
+    @Test
+    public void testCompareToWithMissingFile() {
+        try {
+            File f = new File(RelativePaths.sutRoot + RelativePaths.fileInFolderInRoot);
+            assertTrue(f.delete());
+            sut.update(null, null, null);
+            snapshot.update(null, null, null);
+            
+            sut.compareTo(snapshot, missingFiles, additionalFiles);
+            assertEquals(1, missingFiles.size());
+            
+            List<String> converted = convertToStringList(missingFiles);
+            assertTrue(converted.contains(new File(RelativePaths.comparableRoot + RelativePaths.fileInFolderInRoot).getAbsolutePath()));
+        } catch(Exception e) {
+            e.printStackTrace();
+            fail("unexpected exception occured"); // Fail test
+        }
+    }
+    
+    @Test
+    public void testCompareToWithUnknownFile() {
+        try {
+            File f = new File(RelativePaths.comparableRoot + RelativePaths.fileInFolderInRoot);
+            assertTrue(f.delete());
+            sut.update(null, null, null);
+            snapshot.update(null, null, null);
+            
+            sut.compareTo(snapshot, missingFiles, additionalFiles);
+            assertEquals(1, additionalFiles.size());
+            
+            List<String> converted = convertToStringList(additionalFiles);
+            assertTrue(converted.contains(new File(RelativePaths.sutRoot + RelativePaths.fileInFolderInRoot).getAbsolutePath()));
+        } catch(Exception e) {
+            e.printStackTrace();
+            fail("unexpected exception occured"); // Fail test
+        }
+    }
 
     // MARK: - Helper methods
+    
     private void createTestFiles(String rootFolder) throws IOException {
         File f = new File(rootFolder);
         f.mkdirs();

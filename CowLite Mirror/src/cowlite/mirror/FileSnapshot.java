@@ -356,18 +356,18 @@ public class FileSnapshot {
      * Compares this FileSnapshot to the given FileSnapshot.
      *
      * @param other The FileSnapshot to compare with.
-     * @param missing A list in which the FileSnapshots are stored that are
+     * @param missingFiles A list in which the FileSnapshots are stored that are
      * present in the given FileSnapshot's subdirectories but not in this
      * FileSnapshot's subdirectories. When two FileSnapshots that represent the
      * same file are not equal, they are being added to this list as well.
-     * @param garbage A list in which the FileSnapshots are stored that are
+     * @param additionalFiles A list in which the FileSnapshots are stored that are
      * present in this FileSnapshot's subdirectories, but not present in the
      * given FileSnapshot's subdirectories.
      */
-    public void compareTo(FileSnapshot other, List<FileSnapshot> missing, List<FileSnapshot> garbage) {
+    public void compareTo(FileSnapshot other, List<FileSnapshot> missingFiles, List<FileSnapshot> additionalFiles) {
         // No need to run the method if there are no children to this FileSnapshot
         if (children.isEmpty()) {
-            missing.addAll(other.children.values());
+            missingFiles.addAll(other.children.values());
         }
 
         // Required for iteration
@@ -383,20 +383,18 @@ public class FileSnapshot {
 
                 // FileSnapshots are not the same, add to missing list.
                 if (myChild.isDirectory() != child.isDirectory() || myChild.getSize() != child.getSize()) {
-                    System.out.println("Adding " + child.getFile() + " as missing");
-                    missing.add(child);
+                    missingFiles.add(child);
                 }
 
-                myChild.compareTo(child, missing, garbage);
+                myChild.compareTo(child, missingFiles, additionalFiles);
                 otherChildren.remove(p);
             } else {
-                System.out.println("Adding " + p + " as garbage");
-                garbage.add(children.get(p));
+                additionalFiles.add(children.get(p));
             }
         }
 
         // Add all missing Filesnapshots to the missing list
-        missing.addAll(otherChildren.values());
+        missingFiles.addAll(otherChildren.values());
     }
 
     /**
