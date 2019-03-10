@@ -26,10 +26,11 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -133,13 +134,6 @@ public class FileSnapshot {
 
     /**
      * The time at which the directory which is represented by the
-     * {@code FileSnapshot} was created, as recorded by the last
-     * {@link #update(List, List, List)} call.
-     */
-    private FileTime creationTime;
-
-    /**
-     * The time at which the directory which is represented by the
      * {@code FileSnapshot} was last modified, as recorded by the last
      * {@link #update(List, List, List)} call.
      */
@@ -156,7 +150,7 @@ public class FileSnapshot {
      * {@code true} if the {@code FileSnapshot} represents a directory,
      * {@code false} if the {@code FileSnapshot} represents a file.
      */
-    private boolean directory;
+    private boolean isDirectory;
 
     /**
      * All subdirectories of the directory that is referenced by the
@@ -193,10 +187,29 @@ public class FileSnapshot {
         this.children = new HashMap<>();
 
         BasicFileAttributes attributes = FS.readAttributes(p, BasicFileAttributes.class);
-        this.creationTime = attributes.creationTime();
         this.modifiedTime = attributes.lastModifiedTime();
-        this.directory = attributes.isDirectory();
+        this.isDirectory = attributes.isDirectory();
         this.size = attributes.size();
+    }
+
+    /**
+     * Attempts to initialise a FileSnapshot of the file denoted by the given file path.
+     * @param path The path to the file of which a FileSnapshot has to be made.
+     * @throws IOException When the file could not be found.
+     * @throws IllegalArgumentException When no file is specified.
+     */
+    public FileSnapshot(String path) throws IOException, IllegalArgumentException {
+        this(Paths.get(new File(path).toURI()));
+    }
+
+    /**
+     * Attempts to initialise a FileSnapshot of the file denoted by the given file path.
+     * @param file The file of which a FileSnapshot has to be made.
+     * @throws IOException When the file could not be found.
+     * @throws IllegalArgumentException When no file is specified.
+     */
+    public FileSnapshot(File file) throws IOException, IllegalArgumentException {
+        this(Paths.get(file.toURI()));
     }
 
     /**
@@ -220,53 +233,48 @@ public class FileSnapshot {
      * @param updated The list in which modification events are recorded by
      * adding {@code FileSnapshot}s to the list of which the monitored directory
      * or file has been altered. If this parameter is null, then modification
-     * events are not recorded.
+     * events are not recorded. If a file has turned into a folder or vice
+     * versa, then it is also added to this list.
      * @throws IOException When the {@code FileSnapshot} could not be updated.
      * @see #checkChildren(List, List, List)
      */
     public void update(List<FileSnapshot> deleted, List<FileSnapshot> added, List<FileSnapshot> updated) throws IOException {
         /*
             The file represented by this snapshot doesn't exist. This means
-            that it has most likely been removed. Add it and it's children to the
-            deleted list.
+            that it has most likely been removed. Adding only this file to the
+            deleted list will suffice, as we can infer from that that the children
+            are also deleted.
          */
         if (!checkAccess() && deleted != null) {
-            deleted.addAll(children.values());
             deleted.add(this);
             return;
         }
 
         // Obtain the new file metadata
         BasicFileAttributes attributes = FS.readAttributes(file, BasicFileAttributes.class);
-        FileTime newCreation = attributes.creationTime();
-        FileTime newModified = attributes.lastModifiedTime();
-        boolean newIsDirectory = attributes.isDirectory();
+        FileTime modifiedTime = attributes.lastModifiedTime();
+        boolean isDirectory = attributes.isDirectory();
+        long newSize = attributes.size();
 
-        // Did the file represented by the snapshot change? If so, add it to the modified list.
-        if (!directory && (!newCreation.equals(creationTime) || !newModified.equals(modifiedTime)) || directory && !newIsDirectory) {
-            if (updated != null) {
+        if (isDirectory) {
+            if (!this.isDirectory && updated != null) {
                 updated.add(this);
             }
 
-            // The file has changed, update metadata
-            creationTime = newCreation;
-            modifiedTime = newModified;
-            directory = newIsDirectory;
-            size = attributes.size();
+            updateChildren(deleted, added, updated);
+        } else if (!this.modifiedTime.equals(modifiedTime) || newSize != size) {
+            if (this.isDirectory) {
+                children.clear();
+            }
+
+            if (updated != null) {
+                updated.add(this);
+            }
         }
 
-        // If this snapshot represents a directory, check it's children
-        if (directory) {
-            checkChildren(deleted, added, updated);
-        } else if (!children.isEmpty() && deleted != null) {
-            /*
-                The snapshot does not represent a directory anymore (usually happens
-                when the directory was deleted and replaced by a file that is named
-                identically)
-             */
-            deleted.addAll(children.values());
-            children.clear();
-        }
+        this.isDirectory = isDirectory;
+        this.modifiedTime = modifiedTime;
+        this.size = newSize;
     }
 
     /**
@@ -283,9 +291,7 @@ public class FileSnapshot {
         try {
             FS.checkAccess(file);
             return true;
-        } catch (Exception e) {
-            System.out.println(new Date() + "-------" + "Access DENIED!      " + file);
-            e.printStackTrace();
+        } catch (IOException e) {
             return false;
         }
     }
@@ -312,10 +318,9 @@ public class FileSnapshot {
      * @throws IOException When the {@code FileSnapshot} could not be updated.
      * @see #update(List, List, List)
      */
-    private void checkChildren(List<FileSnapshot> deleted, List<FileSnapshot> added, List<FileSnapshot> updated) throws IOException {
+    private void updateChildren(List<FileSnapshot> deleted, List<FileSnapshot> added, List<FileSnapshot> updated) throws IOException {
         // This list is used  to keep track of the subdirectories that were deleted
-        List<FileSnapshot> deletedChildren = new ArrayList<>(children.values());
-
+        HashMap<Path, FileSnapshot> deletedChildren = new HashMap<>(children);
         DirectoryStream<Path> stream = null;
 
         try {
@@ -327,15 +332,16 @@ public class FileSnapshot {
                 // If the snapshot exists, update it. If it does not, create a new one.
                 if (snapshot != null) {
                     snapshot.update(deleted, added, updated);
-                    deletedChildren.remove(snapshot);
+                    deletedChildren.remove(fileName); // The child is still there, therefore we can  remove it from deletedChildren
                 } else {
                     FileSnapshot newSnapshot = new FileSnapshot(p);
                     children.put(newSnapshot.getName(), newSnapshot);
-                    newSnapshot.update(deleted, added, updated);
 
                     if (added != null) {
                         added.add(newSnapshot);
                     }
+
+                    newSnapshot.update(deleted, added, updated);
                 }
             }
         } catch (IOException e) {
@@ -347,24 +353,12 @@ public class FileSnapshot {
         }
 
         // Remove items from the children HashMap that were not found with java.io.File's listFiles() method
-        removeChildren(deletedChildren);
+        Collection<FileSnapshot> deletedSet = deletedChildren.values();
+        children.values().removeAll(deletedSet);
 
         // Add the removed items to the deleted list, if it exists.
         if (deleted != null) {
-            deleted.addAll(deletedChildren);
-        }
-    }
-
-    /**
-     * Removes the list of {@code FileSnapshot}s from the children map.
-     *
-     * @param remove The {@code FileSnapshot}s to remove.
-     * @see #children
-     * @see #checkChildren(List, List, List)
-     */
-    private void removeChildren(List<FileSnapshot> remove) {
-        for (FileSnapshot snapshot : remove) {
-            children.remove(snapshot.getName());
+            deleted.addAll(deletedSet);
         }
     }
 
@@ -372,25 +366,25 @@ public class FileSnapshot {
      * Compares this FileSnapshot to the given FileSnapshot.
      *
      * @param other The FileSnapshot to compare with.
-     * @param missing A list in which the FileSnapshots are stored that are
+     * @param missingFiles A list in which the FileSnapshots are stored that are
      * present in the given FileSnapshot's subdirectories but not in this
      * FileSnapshot's subdirectories. When two FileSnapshots that represent the
      * same file are not equal, they are being added to this list as well.
-     * @param garbage A list in which the FileSnapshots are stored that are
+     * @param additionalFiles A list in which the FileSnapshots are stored that are
      * present in this FileSnapshot's subdirectories, but not present in the
      * given FileSnapshot's subdirectories.
      */
-    public void compareTo(FileSnapshot other, List<FileSnapshot> missing, List<FileSnapshot> garbage) {
+    public void compareTo(FileSnapshot other, List<FileSnapshot> missingFiles, List<FileSnapshot> additionalFiles) {
         // No need to run the method if there are no children to this FileSnapshot
         if (children.isEmpty()) {
-            missing.addAll(other.children.values());
+            missingFiles.addAll(other.children.values());
         }
 
         // Required for iteration
         Set<Path> childrenNames = children.keySet();
 
         // Make a soft-copy so we can keep track of which FileSnapshots are missing
-        HashMap<Path, FileSnapshot> otherChildren = new HashMap<>(other.getChildren());
+        HashMap<Path, FileSnapshot> otherChildren = new HashMap<>(other.children);
 
         for (Path p : childrenNames) {
             FileSnapshot child = otherChildren.get(p);
@@ -399,20 +393,18 @@ public class FileSnapshot {
 
                 // FileSnapshots are not the same, add to missing list.
                 if (myChild.isDirectory() != child.isDirectory() || myChild.getSize() != child.getSize()) {
-                    System.out.println("Adding " + child.getFile() + " as missing");
-                    missing.add(child);
+                    missingFiles.add(child);
                 }
 
-                myChild.compareTo(child, missing, garbage);
+                myChild.compareTo(child, missingFiles, additionalFiles);
                 otherChildren.remove(p);
             } else {
-                System.out.println("Adding " + p + " as garbage");
-                garbage.add(children.get(p));
+                additionalFiles.add(children.get(p));
             }
         }
 
         // Add all missing Filesnapshots to the missing list
-        missing.addAll(otherChildren.values());
+        missingFiles.addAll(otherChildren.values());
     }
 
     /**
@@ -463,7 +455,7 @@ public class FileSnapshot {
     private void store(PrintWriter out) {
         out.println(file + "||" + modifiedTime.toMillis() + "||" + size);
 
-        for (FileSnapshot child : children.values()) {
+        for(FileSnapshot child : children.values()) {
             child.store(out);
         }
     }
@@ -499,7 +491,7 @@ public class FileSnapshot {
      * directory.
      */
     public boolean isDirectory() {
-        return directory;
+        return isDirectory;
     }
 
     /**
@@ -528,17 +520,6 @@ public class FileSnapshot {
 
     /**
      * Returns the time at which the file that is represented by the
-     * {@code FileSnapshot} was created in milliseconds.
-     *
-     * @return The time at which the file that is represented by the
-     * {@code FileSnapshot} was created in milliseconds.
-     */
-    public long getCreationTime() {
-        return creationTime.toMillis();
-    }
-
-    /**
-     * Returns the time at which the file that is represented by the
      * {@code FileSnapshot} was last modified prior to the previous
      * {@link #update(List, List, List)} call in milliseconds.
      *
@@ -559,7 +540,7 @@ public class FileSnapshot {
      * subdirectories and files contained by the directory that the
      * {@code FileSnapshot} represents.
      */
-    public HashMap<Path, FileSnapshot> getChildren() {
-        return children;
+    public Collection<FileSnapshot> getChildren() {
+        return children.values();
     }
 }
