@@ -192,12 +192,24 @@ public class FileSnapshot {
         this.size = attributes.size();
     }
 
+    /**
+     * Attempts to initialise a FileSnapshot of the file denoted by the given file path.
+     * @param path The path to the file of which a FileSnapshot has to be made.
+     * @throws IOException When the file could not be found.
+     * @throws IllegalArgumentException When no file is specified.
+     */
     public FileSnapshot(String path) throws IOException, IllegalArgumentException {
         this(Paths.get(new File(path).toURI()));
     }
 
-    public FileSnapshot(File f) throws IOException, IllegalArgumentException {
-        this(Paths.get(f.toURI()));
+    /**
+     * Attempts to initialise a FileSnapshot of the file denoted by the given file path.
+     * @param file The file of which a FileSnapshot has to be made.
+     * @throws IOException When the file could not be found.
+     * @throws IllegalArgumentException When no file is specified.
+     */
+    public FileSnapshot(File file) throws IOException, IllegalArgumentException {
+        this(Paths.get(file.toURI()));
     }
 
     /**
@@ -279,9 +291,7 @@ public class FileSnapshot {
         try {
             FS.checkAccess(file);
             return true;
-        } catch (Exception e) {
-            System.out.println(new Date() + "-------" + "Access DENIED!      " + file);
-            e.printStackTrace();
+        } catch (IOException e) {
             return false;
         }
     }
@@ -445,7 +455,7 @@ public class FileSnapshot {
     private void store(PrintWriter out) {
         out.println(file + "||" + modifiedTime.toMillis() + "||" + size);
 
-        for (FileSnapshot child : children.values()) {
+        for(FileSnapshot child : children.values()) {
             child.store(out);
         }
     }
