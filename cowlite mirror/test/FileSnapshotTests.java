@@ -26,6 +26,7 @@ import org.junit.Test;
 public class FileSnapshotTests {
 
     // MARK: - Constants
+    
     private static final class RelativePaths {
 
         public static final String sutRoot = "sut";
@@ -38,9 +39,11 @@ public class FileSnapshotTests {
     }
 
     // MARK: - SUT
+    
     private FileSnapshot sut;
 
     // MARK: - Collaborators
+    
     private FileSnapshot snapshot;
     private ArrayList<FileSnapshot> added;
     private ArrayList<FileSnapshot> updated;
@@ -49,6 +52,7 @@ public class FileSnapshotTests {
     private ArrayList<FileSnapshot> additionalFiles;
 
     // MARK: - Setup & teardown
+    
     @Before
     public void setUp() {
 
@@ -79,6 +83,7 @@ public class FileSnapshotTests {
     }
 
     // MARK: - Tests
+    
     @Test
     public void testInitialUpdate() {
         try {
@@ -207,7 +212,7 @@ public class FileSnapshotTests {
             fail("unexpected exception occured"); // Fail test
         }
     }
-    
+
     @Test
     public void testCompareToWithMissingFile() {
         try {
@@ -215,18 +220,18 @@ public class FileSnapshotTests {
             assertTrue(f.delete());
             sut.update(null, null, null);
             snapshot.update(null, null, null);
-            
+
             sut.compareTo(snapshot, missingFiles, additionalFiles);
             assertEquals(1, missingFiles.size());
-            
+
             List<String> converted = convertToStringList(missingFiles);
             assertTrue(converted.contains(new File(RelativePaths.comparableRoot + RelativePaths.fileInFolderInRoot).getAbsolutePath()));
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
             fail("unexpected exception occured"); // Fail test
         }
     }
-    
+
     @Test
     public void testCompareToWithUnknownFile() {
         try {
@@ -234,13 +239,13 @@ public class FileSnapshotTests {
             assertTrue(f.delete());
             sut.update(null, null, null);
             snapshot.update(null, null, null);
-            
+
             sut.compareTo(snapshot, missingFiles, additionalFiles);
             assertEquals(1, additionalFiles.size());
-            
+
             List<String> converted = convertToStringList(additionalFiles);
             assertTrue(converted.contains(new File(RelativePaths.sutRoot + RelativePaths.fileInFolderInRoot).getAbsolutePath()));
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
             fail("unexpected exception occured"); // Fail test
         }
