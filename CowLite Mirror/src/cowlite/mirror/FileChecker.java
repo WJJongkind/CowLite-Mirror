@@ -21,9 +21,14 @@ package cowlite.mirror;
 import filedatareader.FileDataReader;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +50,8 @@ import javax.swing.filechooser.FileSystemView;
  * @version 2018-03-14
  */
 public class FileChecker {
+    
+    // MARK: - Properties
 
     /**
      * The source disk/folder which has to be duplicated.
@@ -58,13 +65,6 @@ public class FileChecker {
     private final FileSnapshot MIRROR;
 
     /**
-     * The temporary folder which can also be used to add files to the mirror.
-     * Prevents people from accidentally putting files in the mirror folder
-     * rather than the source folder.
-     */
-    private final FileSnapshot TEMP_FOLDER;
-
-    /**
      * Multiplier of the byte-buffer for reading/writing files.
      */
     private final double BUFFER_MULTIPLIER;
@@ -74,30 +74,29 @@ public class FileChecker {
      */
     private final int INTERVAL;
 
+    /**
+     * The maximum file size that will be mirrored.
+     */
     private final long MAX_SIZE;
 
     /**
-     * The lock file. This file is read multiple times when the filechecker is
-     * run in order to make sure that the source folder/disk still exists or is
-     * alive.
+     * The name of the mirror.
      */
-    private final File LOCK;
-
+    private final String MIRROR_NAME;
+    
     /**
      * Whether or not the file checker is already running.
      */
     private boolean bussy;
+    
+    // MARK: - Object lifecycle
 
     /**
      * Instantiates a new FileChecker object and if available, load the library
      * for this filechecker.
      *
-     * @param pathOrigin Path to the source for the mirror: the folder/disk that
-     * should be duplicated.
-     * @param pathMirror Path to the mirror: the folder/disk that is a
-     * duplicate.
-     * @param tempPath Path to the folder which can also be used to upload files
-     * to the mirror.
+     * @param origin File that denotes the path to the source/origin folder.
+     * @param mirror File that denotes the path to the mirror-folder.
      * @param bufferMultiplier Multiplier for the buffer block-size. Default
      * buffer block-size is 8192. A multiplier size of 2 will make the
      * block-size 16384 bytes.
@@ -106,40 +105,40 @@ public class FileChecker {
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(String pathOrigin, String pathMirror, String tempPath, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
+    public FileChecker(File origin, File mirror, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
+        bussy = true;
         BUFFER_MULTIPLIER = bufferMultiplier;
         MAX_SIZE = maxFileSize;
+        INTERVAL = interval;
 
         if (BUFFER_MULTIPLIER < 0.01) {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
         }
 
         // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
-        ORIGIN = new FileSnapshot(Paths.get(pathOrigin));
-        MIRROR = new FileSnapshot(Paths.get(pathMirror));
-        TEMP_FOLDER = new FileSnapshot(Paths.get(tempPath));
-        System.out.println(new Date() + "-------" + "Initializing origin");
-        ORIGIN.update(null, null, null);
-        System.out.println(new Date() + "-------" + "Done, initializing mirror");
-        MIRROR.update(null, null, null);
-        System.out.println(new Date() + "-------" + "Done, initializing temp folder");
-        TEMP_FOLDER.update(null, null, null);
-        System.out.println(new Date() + "-------" + "Done");
+        ORIGIN = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
+        MIRROR = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
+        MIRROR_NAME = makeMirrorName();
 
-        if (!ORIGIN.isDirectory() || !MIRROR.isDirectory() || !TEMP_FOLDER.isDirectory()) {
+        if (!ORIGIN.isDirectory() || !MIRROR.isDirectory()) {
             throw new IllegalArgumentException("One or more of the selected filepaths is invalid.");
         }
-
-        INTERVAL = interval;
-        bussy = false;
-
-        System.out.println(new Date() + "-------" + "Creating lock");
-        //Create a lock file which is used to quit the application if a folder should not be accessible.
-        LOCK = new File(ORIGIN.getFile().toString() + "\\" + new File(getLibraryPath()).getName() + ".lock");
-        LOCK.createNewFile();
-        System.out.println(new Date() + "-------" + "Done");
-
+        
+        MIRROR.update(null, null, null);
+        if(new File(getLibraryPath()).exists()) { // If no known stored library of the mirror exists, then we dont want to update Origin.
+            ORIGIN.update(null, null, null);
+        }  
+        
         loadLibrary();
+        bussy = false;
+    }
+    
+    private String makeMirrorName() throws NoSuchAlgorithmException {
+        String unhashedName = ORIGIN.getFile().toFile().getAbsolutePath()+ "-" + MIRROR.getFile().toFile().getAbsolutePath();
+        
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(unhashedName.getBytes(StandardCharsets.UTF_8));
+        return new String(Base64.getEncoder().encode(hash)).replace("/", "slash").replace("+", "plus").replace("=", "equals");
     }
 
     /**
@@ -148,7 +147,6 @@ public class FileChecker {
      * @throws Exception FileDataReader error.
      */
     private void loadLibrary() throws Exception {
-        System.out.println(new Date() + "-------" + "Loading library");
         if (!new File(getLibraryPath()).exists()) {
             return;
         }
@@ -166,9 +164,7 @@ public class FileChecker {
 
         // Compare the FileSnapshots to the data that was stored
         ArrayList<FileSnapshot> updated = new ArrayList<>();
-        System.out.println(new Date() + "-------" + "Cross-referencing library");
         crossReferenceLibrary(stored, ORIGIN, updated);
-        System.out.println(new Date() + "-------" + "Done cross-referencing library");
 
         for (FileSnapshot s : updated) {
             copyToMirror(s);
@@ -216,12 +212,9 @@ public class FileChecker {
      * on the source disk/folder. Then, it will copy new files and missing data
      * to the mirror. Any files in the temp folder are also added to both the
      * source folder/disk and the mirror.
-     *
-     * @throws java.io.IOException When IO errors occur.
      */
-    public void checkFiles() {
+    public final void checkFiles() {
         if (!bussy) {
-            System.out.println("Executing file check..");
             // Lock the file checker
             bussy = true;
 
@@ -231,32 +224,26 @@ public class FileChecker {
             ArrayList<FileSnapshot> updated = new ArrayList<>();
 
             // Update origin directory tree
-            System.out.println(new Date() + "-------" + "Updating origin");
             try {
                 ORIGIN.update(deleted, added, updated);
             } catch (Exception e) {
                 e.printStackTrace();
+                return;
             }
-            System.out.println(new Date() + "-------" + "Done updating origin, copying new files to mirror");
 
             // Send updates to the mirror directory
-            for (FileSnapshot s : added) {
+            List<FileSnapshot> filesToCopy = new ArrayList<>();
+            filesToCopy.addAll(added);
+            filesToCopy.addAll(updated);
+
+            for (FileSnapshot s : filesToCopy) {
                 try {
                     copyToMirror(s);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
-            System.out.println(new Date() + "-------" + "Done copying to mirror, updating mirror");
-            for (FileSnapshot s : updated) {
-                try {
-                    System.out.println(s.getFile());
-                    copyToMirror(s);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            System.out.println(new Date() + "-------" + "Done updating mirror, deleting old files from mirror");
+
             for (FileSnapshot s : deleted) {
                 try {
                     deleteSourceSnapshotFromMirror(s);
@@ -264,21 +251,21 @@ public class FileChecker {
                     e.printStackTrace();
                 }
             }
-            System.out.println(new Date() + "-------" + "Done deleting old files, updating mirror");
+
             // For validating the mirror directory
             ArrayList<FileSnapshot> missing = new ArrayList<>();
             ArrayList<FileSnapshot> garbage = new ArrayList<>();
 
-            // Update the mirror directory, check which files are still missing or shouldn't be there
+            // Update the mirror directory
             try {
                 MIRROR.update(null, null, null);
             } catch (Exception e) {
                 e.printStackTrace();
+                return;
             }
-            System.out.println(new Date() + "-------" + "Done updating mirror, comparing to origin");
+
             MIRROR.compareTo(ORIGIN, missing, garbage);
 
-            System.out.println(new Date() + "-------" + "Done comparing, adding missing files");
             for (FileSnapshot s : missing) {
                 try {
                     copyToMirror(s);
@@ -286,7 +273,7 @@ public class FileChecker {
                     e.printStackTrace();
                 }
             }
-            System.out.println(new Date() + "-------" + "Done copying missing files, removing garbage");
+
             for (FileSnapshot s : garbage) {
                 try {
                     secureDelete(s.getFile().toFile());
@@ -294,15 +281,13 @@ public class FileChecker {
                     e.printStackTrace();
                 }
             }
-            System.out.println(new Date() + "-------" + "Done removing garbage");
+
             if (!added.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
-                System.out.println(new Date() + "-------" + "Storing new library");
                 try {
                     storeLibrary();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                System.out.println(new Date() + "-------" + "Done storing new library");
             }
         }
 
@@ -328,10 +313,16 @@ public class FileChecker {
 
         securityCheck();
         try {
+            File newFile = new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString()));
+            
+            if(newFile.exists()) {
+                try { FileIO.delete(newFile); } catch (Exception e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
+            }
+
             if (f.isFile()) {
-                FileIO.copy(f, new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())), BUFFER_MULTIPLIER);
+                FileIO.copy(f, newFile, BUFFER_MULTIPLIER);
             } else {
-                FileIO.createDirectory(new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())));
+                FileIO.createDirectory(newFile);
             }
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -351,7 +342,7 @@ public class FileChecker {
      * @param s The {@code FileSnapshot} to be copied to the mirror.
      */
     private void copyToMirror(FileSnapshot s) {
-        if(s.isDirectory()) {
+        if (s.isDirectory()) {
             for(FileSnapshot child : s.getChildren()) {
                 copyToMirror(child);
             }
@@ -375,36 +366,27 @@ public class FileChecker {
         FileChecker.this.deleteSourceSnapshotFromMirror(new File(s.getFile().toString()));
     }
 
-    /**
-     * Delete the mirror of the file at which the given String is pointing, or
-     * does nothing if the string does not represent a path to a directory.
-     *
-     * For example; C:\Test\ is the root folder that is being mirrored, and
-     * C:\Mirror\ is the root for the mirror. When deleting the mirrored file of
-     * C:\Test\foldera\folderb\file.mp4, then C:\Mirror\foldera\folderb\file.mp4
-     * will be removed.
-     *
-     * @param path The file to be removed to the mirror.
-     */
-    private void deleteSouceSnapshotFromMirror(String path) {
-        FileChecker.this.deleteSourceSnapshotFromMirror(new File(path));
-    }
-
     private void deleteSourceSnapshotFromMirror(File f) {
         try {
-            secureDelete(new File(MIRROR.getFile().toString() + getPath(f, ORIGIN.getFile().toString())));
+            secureDelete(new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString())));
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    
+
     private void secureDelete(File f) throws IOException {
         securityCheck();
         FileIO.delete(f);
     }
 
     private void securityCheck() {
-        if (!LOCK.exists() || !new File(getPath(LOCK, MIRROR.getFile().toString())).exists()) {
+        if (!ORIGIN.getFile().toFile().exists()) {
+            System.err.println("Could not find source folder.");
+            System.exit(0);
+        }
+
+        if (!MIRROR.getFile().toFile().exists()) {
+            System.err.println("Could not find mirror folder.");
             System.exit(0);
         }
     }
@@ -420,6 +402,8 @@ public class FileChecker {
         // Set the output stream to the correct folder.
         String path = getLibraryPath();
         File out = new File(path + ".tmp");
+        out.getParentFile().mkdirs();
+        out.createNewFile();
 
         // Print the library values.
         ORIGIN.store(out);
@@ -440,19 +424,7 @@ public class FileChecker {
      * @return Library to the library file.
      */
     private String getLibraryPath() {
-        // TODO memory leak?
-        // Obtain documents folder. Possibly this way causes memory leaks?
-        JFileChooser fr = new JFileChooser();
-        FileSystemView fw = fr.getFileSystemView();
-
-        // Generate path string
-        String originLetter = Paths.get(ORIGIN.getFile().toString()).getRoot().toString();
-        String mirrorLetter = Paths.get(MIRROR.getFile().toString()).getRoot().toString();
-        String path = fw.getDefaultDirectory().getAbsolutePath()
-                + "\\CowLite Mirror\\" + ORIGIN.getFile().toString().replace(originLetter, "").replace("\\", ".")
-                + "-" + MIRROR.getFile().toString().replace(mirrorLetter, "").replace("\\", ".");
-
-        return path;
+        return "mirrors" + File.separator + MIRROR_NAME + ".cm";
     }
 
     /**
@@ -462,14 +434,14 @@ public class FileChecker {
      * @param root Root at which the path should start.
      * @return Relative path to a file from a root.
      */
-    private String getPath(File f, String root) {
+    private String getRelativePath(File f, String root) {
         String path = f.getAbsolutePath().replace(root, "");
         if (path.equals("")) {
             return path;
         }
 
-        if (!(path.charAt(0) + "").equals("\\")) {
-            path = "\\" + path;
+        if (!(path.charAt(0) + "").equals("/")) {
+            path = File.separator + path;
         }
 
         return path;
