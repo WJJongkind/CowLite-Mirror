@@ -204,7 +204,7 @@ public class FileChecker {
             updated.add(snapshot);
         }
 
-        for (FileSnapshot s : snapshot.getChildren().values()) {
+        for (FileSnapshot s : snapshot.getChildren()) {
             crossReferenceLibrary(stored, s, updated);
         }
     }
@@ -352,7 +352,7 @@ public class FileChecker {
      */
     private void copyToMirror(FileSnapshot s) {
         if(s.isDirectory()) {
-            for(FileSnapshot child : s.getChildren().values()) {
+            for(FileSnapshot child : s.getChildren()) {
                 copyToMirror(child);
             }
         } else {
