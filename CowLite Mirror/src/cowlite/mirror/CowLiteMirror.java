@@ -89,10 +89,6 @@ public class CowLiteMirror {
      * loaded.
      */
     public static void main(String[] args) throws Exception {
-        System.out.println(new File("").getAbsolutePath());
-        
-        
-        
         Map<PossibleArgument, String> arguments = new HashMap<>();
         List<String> missingArguments = new ArrayList<>(requiredArguments);
         
