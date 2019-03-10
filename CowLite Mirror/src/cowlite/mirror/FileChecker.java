@@ -327,13 +327,8 @@ public class FileChecker {
      * @param s The {@code FileSnapshot} to be copied to the mirror.
      */
     private void copyToMirror(FileSnapshot s) {
-<<<<<<< Updated upstream
-        if(s.isDirectory()) {
-            for(FileSnapshot child : s.getChildren()) {
-=======
         if (s.isDirectory()) {
-            for (FileSnapshot child : s.getChildren().values()) {
->>>>>>> Stashed changes
+            for(FileSnapshot child : s.getChildren()) {
                 copyToMirror(child);
             }
         } else {
