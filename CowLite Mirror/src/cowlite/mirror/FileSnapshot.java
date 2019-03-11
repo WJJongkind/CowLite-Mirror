@@ -31,7 +31,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -114,7 +113,7 @@ import java.util.Set;
  * </i></pre>
  *
  * @author Wessel Jelle Jongkind
- * @version 2018-03-13 (yyyy/mm/dd)
+ * @version 2019-03-10 (yyyy/mm/dd)
  */
 public class FileSnapshot {
 

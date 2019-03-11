@@ -27,6 +27,7 @@ import javax.swing.Timer;
  * ran at.
  *
  * @author Wessel Jelle Jongkind
+ * @version 2019-03-11 (yyyy-mm-dd)
  */
 public class FileCheckerTimer implements ActionListener {
     

@@ -38,7 +38,7 @@ import java.util.LinkedList;
  * new files and creating a folder with all subdirectories.
  *
  * @author Wessel Jelle Jongkind
- * @version 2018-03-13 (yyyy-mm-dd)
+ * @version 2019-03-10 (yyyy-mm-dd)
  */
 public class FileIO {
 
@@ -151,9 +151,7 @@ public class FileIO {
                 if (os != null) {
                     os.close();
                 }
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
+            } catch (IOException ex) { }
         }
     }
 

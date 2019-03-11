@@ -22,8 +22,6 @@ import filedatareader.FileDataReader;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -32,8 +30,8 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileSystemView;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This is the 'backbone' of the project. Objects of this class imitate disk
@@ -47,7 +45,7 @@ import javax.swing.filechooser.FileSystemView;
  * source will be removed.
  *
  * @author Wessel Jelle Jongkind
- * @version 2018-03-14
+ * @version 2019-03-11 (yyyy-mm-dd)
  */
 public class FileChecker {
     
@@ -89,25 +87,28 @@ public class FileChecker {
      */
     private boolean bussy;
     
+    /**
+     * Lock used to lock the FileChecker checkFiles() method so that it can only be ran serially.
+     */
+    private final Lock lock = new ReentrantLock();
+    
     // MARK: - Object lifecycle
 
     /**
      * Instantiates a new FileChecker object and if available, load the library
-     * for this filechecker.
+     * for this FileChecker.
      *
      * @param origin File that denotes the path to the source/origin folder.
      * @param mirror File that denotes the path to the mirror-folder.
-     * @param bufferMultiplier Multiplier for the buffer block-size. Default
-     * buffer block-size is 8192. A multiplier size of 2 will make the
-     * block-size 16384 bytes.
+     * @param bufferSize The size of the buffer used for file-transfers in megabytes.
      * @param interval The interval at which the file checker should run.
      * @param maxFileSize The maximum size of files that are to be checked.
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(File origin, File mirror, double bufferMultiplier, int interval, long maxFileSize) throws Exception {
+    public FileChecker(File origin, File mirror, double bufferSize, int interval, long maxFileSize) throws Exception {
         bussy = true;
-        BUFFER_MULTIPLIER = bufferMultiplier;
+        BUFFER_MULTIPLIER = bufferSize;
         MAX_SIZE = maxFileSize;
         INTERVAL = interval;
 
@@ -133,6 +134,19 @@ public class FileChecker {
         bussy = false;
     }
     
+    /**
+     * Constructs & returns the name of the mirror. The name of the mirror can is made by
+     * concatenating the origin filepath with the mirror filepath, with a dash in the middle.
+     * For example: mirror = "C:\\users" and mirror = "C:\\mirror", then the concatenated String is
+     * "C:\\users-C:\\mirror". 
+     * 
+     * Of this concatenated String, the SHA-256 hash is calculated and base64 encoded. The base64 String utf8
+     * representation is then returned. In this String, '/' is replaced with 'slash', '+' is replaced with 'plus' and
+     * '=' is replaced with 'equals'.
+     * 
+     * @return The name of the mirror.
+     * @throws NoSuchAlgorithmException 
+     */
     private String makeMirrorName() throws NoSuchAlgorithmException {
         String unhashedName = ORIGIN.getFile().toFile().getAbsolutePath()+ "-" + MIRROR.getFile().toFile().getAbsolutePath();
         
@@ -214,8 +228,8 @@ public class FileChecker {
      * source folder/disk and the mirror.
      */
     public final void checkFiles() {
-        if (!bussy) {
-            // Lock the file checker
+        try {
+            lock.lock();
             bussy = true;
 
             // ArrayLists that keep track of all changes
@@ -226,8 +240,7 @@ public class FileChecker {
             // Update origin directory tree
             try {
                 ORIGIN.update(deleted, added, updated);
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException e) {
                 return;
             }
 
@@ -239,17 +252,13 @@ public class FileChecker {
             for (FileSnapshot s : filesToCopy) {
                 try {
                     copyToMirror(s);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                } catch (Exception e) {} // If file copying fails, still attempt to copy other files.
             }
 
             for (FileSnapshot s : deleted) {
                 try {
                     deleteSourceSnapshotFromMirror(s);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                } catch (Exception e) { } // If file deletion fails, still attempt to remove the other files.
             }
 
             // For validating the mirror directory
@@ -260,7 +269,6 @@ public class FileChecker {
             try {
                 MIRROR.update(null, null, null);
             } catch (Exception e) {
-                e.printStackTrace();
                 return;
             }
 
@@ -269,29 +277,23 @@ public class FileChecker {
             for (FileSnapshot s : missing) {
                 try {
                     copyToMirror(s);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                } catch (Exception e) { } // If file copying fails, still attempt to copy other files.
             }
 
             for (FileSnapshot s : garbage) {
                 try {
                     secureDelete(s.getFile().toFile());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                } catch (IOException e) { } // If file deletion fails, still attempt to remove the other files.
             }
 
             if (!added.isEmpty() || !updated.isEmpty() || !deleted.isEmpty()) {
                 try {
                     storeLibrary();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                } catch (IOException e) { }
             }
+        } finally {
+            lock.unlock();
         }
-
-        bussy = false;
     }
 
     /**
@@ -316,7 +318,7 @@ public class FileChecker {
             File newFile = new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString()));
             
             if(newFile.exists()) {
-                try { FileIO.delete(newFile); } catch (Exception e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
+                try { FileIO.delete(newFile); } catch (IOException e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
             }
 
             if (f.isFile()) {
@@ -324,9 +326,7 @@ public class FileChecker {
             } else {
                 FileIO.createDirectory(newFile);
             }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        } catch (IOException ex) { }
     }
 
     /**
@@ -353,7 +353,7 @@ public class FileChecker {
 
     /**
      * Delete the mirror of the file which the given {@code FileSnapshot}
-     * denotes from the mirror.
+     * denotes.
      *
      * For example; C:\Test\ is the root folder that is being mirrored, and
      * C:\Mirror\ is the root for the mirror. When deleting the mirrored file of
@@ -366,19 +366,40 @@ public class FileChecker {
         FileChecker.this.deleteSourceSnapshotFromMirror(new File(s.getFile().toString()));
     }
 
+    /**
+     * Delete the mirror of the file which the given {@code File}
+     * denotes.
+     *
+     * For example; C:\Test\ is the root folder that is being mirrored, and
+     * C:\Mirror\ is the root for the mirror. When deleting the mirrored file of
+     * C:\Test\foldera\folderb\file.mp4, then C:\Mirror\foldera\folderb\file.mp4
+     * will be removed.
+     *
+     * @param f 
+     */
     private void deleteSourceSnapshotFromMirror(File f) {
         try {
             secureDelete(new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString())));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (IOException e) { }
     }
 
+    /**
+     * First check if the origin folder is still accessible. If so, then it is safe
+     * to remove the file. If not, the origin may have gone offline due to hardware failure
+     * or any other number of reasons. At that point, no files should be removed from the mirror
+     * just to be safe.
+     * @param f
+     * @throws IOException 
+     */
     private void secureDelete(File f) throws IOException {
         securityCheck();
         FileIO.delete(f);
     }
 
+    /**
+     * Checks if both the mirror & origin are still accessible. If not, the application
+     * is instantly shut down.
+     */
     private void securityCheck() {
         if (!ORIGIN.getFile().toFile().exists()) {
             System.err.println("Could not find source folder.");
@@ -456,5 +477,13 @@ public class FileChecker {
      */
     public int getInterval() {
         return INTERVAL;
+    }
+    
+    /**
+     * Returns true of the FileChecker is already running.
+     * @return True if the FileChecker is already running, false otherwise.
+     */
+    public boolean isBussy() {
+        return bussy;
     }
 }

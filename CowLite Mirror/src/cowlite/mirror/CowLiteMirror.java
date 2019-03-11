@@ -19,11 +19,8 @@
 package cowlite.mirror;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +33,7 @@ import java.util.concurrent.CountDownLatch;
  * the project.
  *
  * @author Wessel Jelle Jongkind
- * @version 2018-02-17
+ * @version 2019-03-10 (yyyy-mm-dd)
  */
 public class CowLiteMirror {
 
@@ -112,6 +109,11 @@ public class CowLiteMirror {
         int timerInterval = -1;
         try {
             timerInterval = Integer.parseInt(arguments.get(PossibleArgument.interval));
+            
+            if (timerInterval <= 0) {
+                System.out.println("Argument for key " + PossibleArgument.interval.rawValue + " is illegal. Value should be > 0.");
+                System.exit(0);
+            }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.interval.rawValue + " is invalid. Please specify the time in milliseconds.");
             System.exit(0);
@@ -120,6 +122,11 @@ public class CowLiteMirror {
         long maxFileSize = -1;
         try {
             maxFileSize = Long.parseLong(arguments.get(PossibleArgument.maxSize));
+            
+            if(maxFileSize <= 0) {
+                System.out.println("Argument for key " + PossibleArgument.maxSize.rawValue + " is illegal. Value should be > 0.");
+                System.exit(0);
+            }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.maxSize.rawValue + " is invalid. Please specify the time in milliseconds.");
             System.exit(0);
@@ -130,6 +137,11 @@ public class CowLiteMirror {
             String stringRepresentation;
             if ((stringRepresentation = arguments.get(PossibleArgument.bufferMultiplier)) != null) {
                 bufferMultiplier = Integer.parseInt(arguments.get(PossibleArgument.bufferMultiplier));
+                
+                if(bufferMultiplier <= 0) {
+                    System.out.println("Argument for key " + PossibleArgument.bufferMultiplier.rawValue + " is illegal. Value should be > 0.");
+                    System.exit(0);
+                }
             }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.bufferMultiplier.rawValue + " is invalid. Please specify the time in milliseconds.");
@@ -146,6 +158,13 @@ public class CowLiteMirror {
         latch.await();
     }
 
+    /**
+     * Adds a run-argument to the provided map of arguments.
+     * @param arguments The map in which all run commands are stored.
+     * @param missing The map containing any arguments that are still missing, but required to run the application.
+     * @param key The key of the argument.
+     * @param value  The value of the argument.
+     */
     private static void addArgument(Map<PossibleArgument, String> arguments, List<String> missing, String key, String value) {
         PossibleArgument mapKey;
         if((mapKey = PossibleArgument.stringToArgument(key)) == null) {
@@ -162,11 +181,17 @@ public class CowLiteMirror {
         arguments.put(mapKey, value);
     }
     
+    /**
+     * Checks if there are any missing arguments. If so, the missing arguments are
+     * printed to the console and the application is shut down.
+     * 
+     * @param missingArguments The list containing the missing arguments.
+     */
     private static void checkMissingArguments(List<String> missingArguments) {
         if(missingArguments.size() > 0) {
             String message = "Too few arguments provided. Please provide values for: ";
             
-            for(String missing: missingArguments) {
+            for (String missing: missingArguments) {
                 message += missing + ", ";
             }
             
