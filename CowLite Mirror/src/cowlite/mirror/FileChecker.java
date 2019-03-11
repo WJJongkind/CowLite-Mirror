@@ -69,7 +69,7 @@ public class FileChecker {
     /**
      * Multiplier of the byte-buffer for reading/writing files.
      */
-    private final double bufferSize;
+    private final int bufferSize;
 
     /**
      * The interval at which this checker should run in seconds.
@@ -111,7 +111,7 @@ public class FileChecker {
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(File origin, File mirror, FileService fileService,  double bufferSize, int interval, long maxFileSize) throws Exception {
+    public FileChecker(File origin, File mirror, FileService fileService,  int bufferSize, int interval, long maxFileSize) throws Exception {
         this.bufferSize = bufferSize;
         this.maxFileSize = maxFileSize;
         this.interval = interval;

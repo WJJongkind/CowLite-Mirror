@@ -62,7 +62,7 @@ public interface FileService {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public void copy(String source, String target, double bufferSize) throws IOException;
+    public void copy(String source, String target, int bufferSize) throws IOException;
 
     /**
      * Copy a file from the given source file to the given target file. If the
@@ -90,7 +90,7 @@ public interface FileService {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public void copy(File source, File target, double bufferSize) throws IOException;
+    public void copy(File source, File target, int bufferSize) throws IOException;
 
     /**
      * Delete the file or directory at the given {@code Path}. Does nothing if

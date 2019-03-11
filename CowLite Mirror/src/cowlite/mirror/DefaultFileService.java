@@ -71,7 +71,7 @@ public class DefaultFileService implements FileService {
      * errors.
      */
     @Override
-    public void copy(String source, String target, double buff) throws IOException {
+    public void copy(String source, String target, int buff) throws IOException {
         copy(new File(source), new File(target), buff);
     }
 
@@ -107,7 +107,7 @@ public class DefaultFileService implements FileService {
      * errors.
      */
     @Override
-    public void copy(File source, File target, double buff) throws IOException {
+    public void copy(File source, File target, int buff) throws IOException {
         FileInputStream is = null;
         FileOutputStream os = null;
         FileChannel fci = null;
