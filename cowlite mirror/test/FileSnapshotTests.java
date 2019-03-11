@@ -1,5 +1,24 @@
+/* 
+ * Copyright (C) 2019 Wessel Jelle Jongkind.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301  USA
+ */
 
-import cowlite.mirror.FileIO;
+import cowlite.mirror.DefaultFileService;
+import cowlite.mirror.FileService;
 import cowlite.mirror.FileSnapshot;
 import java.io.File;
 import java.io.IOException;
@@ -14,14 +33,9 @@ import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 /**
  *
- * @author Wessel
+ * @author Wessel Jelle Jongkind
  */
 public class FileSnapshotTests {
 
@@ -50,6 +64,10 @@ public class FileSnapshotTests {
     private ArrayList<FileSnapshot> deleted;
     private ArrayList<FileSnapshot> missingFiles;
     private ArrayList<FileSnapshot> additionalFiles;
+    
+    // MARK: - Test-utilities
+    
+    FileService fileService = new DefaultFileService();
 
     // MARK: - Setup & teardown
     
@@ -75,8 +93,8 @@ public class FileSnapshotTests {
     @After
     public void tearDown() {
         try {
-            FileIO.delete(new File(RelativePaths.sutRoot));
-            FileIO.delete(new File(RelativePaths.comparableRoot));
+            fileService.delete(new File(RelativePaths.sutRoot));
+            fileService.delete(new File(RelativePaths.comparableRoot));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -163,7 +181,7 @@ public class FileSnapshotTests {
         try {
             sut.update(null, null, null);
             File f = new File(RelativePaths.sutRoot);
-            FileIO.delete(f);
+            fileService.delete(f);
 
             sut.update(deleted, added, updated);
             assertEquals(1, deleted.size());
@@ -182,7 +200,7 @@ public class FileSnapshotTests {
             sut.update(null, null, null);
             File f = new File(RelativePaths.sutRoot + RelativePaths.fileInFolderInRoot);
             assertTrue(f.delete());
-            assertTrue(f.createNewFile());
+            assertTrue(f.mkdir());
 
             sut.update(deleted, added, updated);
             assertEquals(1, updated.size());
@@ -201,11 +219,12 @@ public class FileSnapshotTests {
             sut.update(null, null, null);
             File f = new File(RelativePaths.sutRoot + RelativePaths.folderInFolderInFolderInRoot);
             assertTrue(f.delete());
+            assertTrue(f.createNewFile());
 
             sut.update(deleted, added, updated);
-            assertEquals(1, deleted.size());
+            assertEquals(1, updated.size());
 
-            List<String> converted = convertToStringList(deleted);
+            List<String> converted = convertToStringList(updated);
             assertTrue(converted.contains(f.getAbsolutePath()));
         } catch (Exception e) {
             e.printStackTrace();

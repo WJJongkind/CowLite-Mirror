@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2018 Wessel Jelle Jongkind.
+ * Copyright (C) 2019 Wessel Jelle Jongkind.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -54,38 +54,42 @@ public class FileChecker {
     /**
      * The source disk/folder which has to be duplicated.
      */
-    private final FileSnapshot ORIGIN;
+    private final FileSnapshot originSnapshot;
 
     /**
      * The target disk/folder, also called the mirror. Is a duplicate of the
      * source disk/folder.
      */
-    private final FileSnapshot MIRROR;
+    private final FileSnapshot mirrorSnapshot;
 
+    /**
+     * FileService used for copying, deleting and creating files/folders.
+     */
+    private final FileService fileService;
     /**
      * Multiplier of the byte-buffer for reading/writing files.
      */
-    private final double BUFFER_MULTIPLIER;
+    private final double bufferSize;
 
     /**
      * The interval at which this checker should run in seconds.
      */
-    private final int INTERVAL;
+    private final int interval;
 
     /**
      * The maximum file size that will be mirrored.
      */
-    private final long MAX_SIZE;
+    private final long maxFileSize;
 
     /**
      * The name of the mirror.
      */
-    private final String MIRROR_NAME;
+    private final String mirrorName;
     
     /**
      * Whether or not the file checker is already running.
      */
-    private boolean bussy;
+    private boolean bussy = false;
     
     /**
      * Lock used to lock the FileChecker checkFiles() method so that it can only be ran serially.
@@ -100,38 +104,38 @@ public class FileChecker {
      *
      * @param origin File that denotes the path to the source/origin folder.
      * @param mirror File that denotes the path to the mirror-folder.
+     * @param fileService The service which can be used to create, copy & delete files/folders.
      * @param bufferSize The size of the buffer used for file-transfers in megabytes.
      * @param interval The interval at which the file checker should run.
      * @param maxFileSize The maximum size of files that are to be checked.
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(File origin, File mirror, double bufferSize, int interval, long maxFileSize) throws Exception {
-        bussy = true;
-        BUFFER_MULTIPLIER = bufferSize;
-        MAX_SIZE = maxFileSize;
-        INTERVAL = interval;
+    public FileChecker(File origin, File mirror, FileService fileService,  double bufferSize, int interval, long maxFileSize) throws Exception {
+        this.bufferSize = bufferSize;
+        this.maxFileSize = maxFileSize;
+        this.interval = interval;
+        this.fileService = fileService;
 
-        if (BUFFER_MULTIPLIER < 0.01) {
+        if (this.bufferSize < 0.01) {
             throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
         }
 
         // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
-        ORIGIN = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
-        MIRROR = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
-        MIRROR_NAME = makeMirrorName();
+        this.originSnapshot = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
+        this.mirrorSnapshot = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
+        this.mirrorName = makeMirrorName();
 
-        if (!ORIGIN.isDirectory() || !MIRROR.isDirectory()) {
+        if (!this.originSnapshot.isDirectory() || !mirrorSnapshot.isDirectory()) {
             throw new IllegalArgumentException("One or more of the selected filepaths is invalid.");
         }
         
-        MIRROR.update(null, null, null);
+        mirrorSnapshot.update(null, null, null);
         if(new File(getLibraryPath()).exists()) { // If no known stored library of the mirror exists, then we dont want to update Origin.
-            ORIGIN.update(null, null, null);
+            this.originSnapshot.update(null, null, null);
         }  
         
         loadLibrary();
-        bussy = false;
     }
     
     /**
@@ -148,7 +152,7 @@ public class FileChecker {
      * @throws NoSuchAlgorithmException 
      */
     private String makeMirrorName() throws NoSuchAlgorithmException {
-        String unhashedName = ORIGIN.getFile().toFile().getAbsolutePath()+ "-" + MIRROR.getFile().toFile().getAbsolutePath();
+        String unhashedName = originSnapshot.getFile().toFile().getAbsolutePath()+ "-" + mirrorSnapshot.getFile().toFile().getAbsolutePath();
         
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(unhashedName.getBytes(StandardCharsets.UTF_8));
@@ -178,7 +182,7 @@ public class FileChecker {
 
         // Compare the FileSnapshots to the data that was stored
         ArrayList<FileSnapshot> updated = new ArrayList<>();
-        crossReferenceLibrary(stored, ORIGIN, updated);
+        crossReferenceLibrary(stored, originSnapshot, updated);
 
         for (FileSnapshot s : updated) {
             copyToMirror(s);
@@ -239,7 +243,7 @@ public class FileChecker {
 
             // Update origin directory tree
             try {
-                ORIGIN.update(deleted, added, updated);
+                originSnapshot.update(deleted, added, updated);
             } catch (IOException e) {
                 return;
             }
@@ -267,12 +271,12 @@ public class FileChecker {
 
             // Update the mirror directory
             try {
-                MIRROR.update(null, null, null);
+                mirrorSnapshot.update(null, null, null);
             } catch (Exception e) {
                 return;
             }
 
-            MIRROR.compareTo(ORIGIN, missing, garbage);
+            mirrorSnapshot.compareTo(originSnapshot, missing, garbage);
 
             for (FileSnapshot s : missing) {
                 try {
@@ -309,22 +313,22 @@ public class FileChecker {
      * @param f The {@code File} to be copied to the mirror.
      */
     private void copyToMirror(File f) {
-        if (!f.exists() || f.length() > MAX_SIZE) {
+        if (!f.exists() || f.length() > maxFileSize) {
             return;
         }
 
         securityCheck();
         try {
-            File newFile = new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString()));
+            File newFile = new File(mirrorSnapshot.getFile().toString() + getRelativePath(f, originSnapshot.getFile().toString()));
             
             if(newFile.exists()) {
-                try { FileIO.delete(newFile); } catch (IOException e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
+                try { fileService.delete(newFile); } catch (IOException e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
             }
 
             if (f.isFile()) {
-                FileIO.copy(f, newFile, BUFFER_MULTIPLIER);
+                fileService.copy(f, newFile, bufferSize);
             } else {
-                FileIO.createDirectory(newFile);
+                fileService.createDirectory(newFile);
             }
         } catch (IOException ex) { }
     }
@@ -379,7 +383,7 @@ public class FileChecker {
      */
     private void deleteSourceSnapshotFromMirror(File f) {
         try {
-            secureDelete(new File(MIRROR.getFile().toString() + getRelativePath(f, ORIGIN.getFile().toString())));
+            secureDelete(new File(mirrorSnapshot.getFile().toString() + getRelativePath(f, originSnapshot.getFile().toString())));
         } catch (IOException e) { }
     }
 
@@ -393,7 +397,7 @@ public class FileChecker {
      */
     private void secureDelete(File f) throws IOException {
         securityCheck();
-        FileIO.delete(f);
+        fileService.delete(f);
     }
 
     /**
@@ -401,12 +405,12 @@ public class FileChecker {
      * is instantly shut down.
      */
     private void securityCheck() {
-        if (!ORIGIN.getFile().toFile().exists()) {
+        if (!originSnapshot.getFile().toFile().exists()) {
             System.err.println("Could not find source folder.");
             System.exit(0);
         }
 
-        if (!MIRROR.getFile().toFile().exists()) {
+        if (!mirrorSnapshot.getFile().toFile().exists()) {
             System.err.println("Could not find mirror folder.");
             System.exit(0);
         }
@@ -427,7 +431,7 @@ public class FileChecker {
         out.createNewFile();
 
         // Print the library values.
-        ORIGIN.store(out);
+        originSnapshot.store(out);
 
         // Remove the old library file.
         File nf = new File(path);
@@ -445,7 +449,7 @@ public class FileChecker {
      * @return Library to the library file.
      */
     private String getLibraryPath() {
-        return "mirrors" + File.separator + MIRROR_NAME + ".cm";
+        return "mirrors" + File.separator + mirrorName + ".cm";
     }
 
     /**
@@ -476,7 +480,7 @@ public class FileChecker {
      * should be updated.
      */
     public int getInterval() {
-        return INTERVAL;
+        return interval;
     }
     
     /**

@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2018 Wessel Jelle Jongkind.
+ * Copyright (C) 2019 Wessel Jelle Jongkind.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -148,7 +148,7 @@ public class CowLiteMirror {
             System.exit(0);
         }
         
-        FileChecker checker = new FileChecker(origin, mirror, bufferMultiplier, timerInterval, maxFileSize);
+        FileChecker checker = new FileChecker(origin, mirror, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
 
         // Start the timer, which will run the filecheckers.
         timer = new FileCheckerTimer(checker, true);
