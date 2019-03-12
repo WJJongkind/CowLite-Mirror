@@ -29,12 +29,12 @@ import javax.swing.Timer;
  * @author Wessel Jelle Jongkind
  * @version 2019-03-11 (yyyy-mm-dd)
  */
-public class FileCheckerTimer implements ActionListener {
+public class MirrorSyncTimer implements ActionListener {
     
     /**
      * The FileChecker which has to be triggered at a given interval.
      */
-    private final FileChecker checker;
+    private final Mirror checker;
     
     /**
      * Timer used for timing the file checkers.
@@ -46,7 +46,7 @@ public class FileCheckerTimer implements ActionListener {
      *
      * @param checker FileChecker that should be triggered at it's given interval.
      */
-    public FileCheckerTimer(FileChecker checker, boolean shouldDoInitialCheck) {
+    public MirrorSyncTimer(Mirror checker, boolean shouldDoInitialCheck) {
         this.checker = checker;
 
         // Start the timer if it has not been created and started yet.

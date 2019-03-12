@@ -47,7 +47,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Wessel Jelle Jongkind
  * @version 2019-03-11 (yyyy-mm-dd)
  */
-public class FileChecker {
+public class Mirror {
     
     // MARK: - Properties
 
@@ -111,7 +111,7 @@ public class FileChecker {
      * @throws Exception When the lock-file could not be created or the origin,
      * mirror or temp_folder are not existing folders.
      */
-    public FileChecker(File origin, File mirror, FileService fileService,  int bufferSize, int interval, long maxFileSize) throws Exception {
+    public Mirror(File origin, File mirror, FileService fileService,  int bufferSize, int interval, long maxFileSize) throws Exception {
         this.bufferSize = bufferSize;
         this.maxFileSize = maxFileSize;
         this.interval = interval;
@@ -367,7 +367,7 @@ public class FileChecker {
      * @param s The file to be removed to the mirror.
      */
     private void deleteSourceSnapshotFromMirror(FileSnapshot s) {
-        FileChecker.this.deleteSourceSnapshotFromMirror(new File(s.getFile().toString()));
+        Mirror.this.deleteSourceSnapshotFromMirror(new File(s.getFile().toString()));
     }
 
     /**

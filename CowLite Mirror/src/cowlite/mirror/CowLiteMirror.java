@@ -40,7 +40,7 @@ public class CowLiteMirror {
     /**
      * The timer that is used to start mirror checks.
      */
-    public static FileCheckerTimer timer;
+    public static MirrorSyncTimer timer;
     
     /**
      * This enumeration defines all the possible arguments.
@@ -148,10 +148,10 @@ public class CowLiteMirror {
             System.exit(0);
         }
         
-        FileChecker checker = new FileChecker(origin, mirror, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
+        Mirror checker = new Mirror(origin, mirror, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
 
         // Start the timer, which will run the filecheckers.
-        timer = new FileCheckerTimer(checker, true);
+        timer = new MirrorSyncTimer(checker, true);
 
         // To prevent the application from stopping prematurely...
         CountDownLatch latch = new CountDownLatch(1);
