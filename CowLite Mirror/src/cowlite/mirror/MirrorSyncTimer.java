@@ -23,7 +23,7 @@ import java.awt.event.ActionListener;
 import javax.swing.Timer;
 
 /**
- * This class is used to run FileCheckers at the interval that they are required to be
+ * This class is used to run Mirrors at the interval that they are required to be
  * ran at.
  *
  * @author Wessel Jelle Jongkind
@@ -32,9 +32,9 @@ import javax.swing.Timer;
 public class MirrorSyncTimer implements ActionListener {
     
     /**
-     * The FileChecker which has to be triggered at a given interval.
+     * The Mirror which has to be synchronized at a given interval.
      */
-    private final Mirror checker;
+    private final Mirror mirror;
     
     /**
      * Timer used for timing the file checkers.
@@ -44,10 +44,11 @@ public class MirrorSyncTimer implements ActionListener {
     /**
      * Instantiates and starts a new IntervalTimer.
      *
-     * @param checker FileChecker that should be triggered at it's given interval.
+     * @param checker Mirror that should be triggered at it's given interval.
+     * @param shouldDoInitialCheck Set this parameter to true if the mirror should be synced instantly, false if only after the specified interval.
      */
     public MirrorSyncTimer(Mirror checker, boolean shouldDoInitialCheck) {
-        this.checker = checker;
+        this.mirror = checker;
 
         // Start the timer if it has not been created and started yet.
         if (timer == null) {
@@ -62,6 +63,6 @@ public class MirrorSyncTimer implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        checker.checkFiles();
+        mirror.checkFiles();
     }
 }

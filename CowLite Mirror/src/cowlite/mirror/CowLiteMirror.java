@@ -96,13 +96,13 @@ public class CowLiteMirror {
         
         checkMissingArguments(missingArguments);
 
-        File origin = new File(arguments.get(PossibleArgument.origin));
-        if (!origin.exists()) {
+        File originDirectory = new File(arguments.get(PossibleArgument.origin));
+        if (!originDirectory.exists()) {
             System.out.println("Specified origin folder does not exist.");
         }
         
-        File mirror = new File(arguments.get(PossibleArgument.mirror));
-        if (!mirror.exists()) {
+        File mirrorDirectory = new File(arguments.get(PossibleArgument.mirror));
+        if (!mirrorDirectory.exists()) {
             System.out.println("Specified mirror folder does not exist.");
         }
         
@@ -136,7 +136,7 @@ public class CowLiteMirror {
         try {
             String stringRepresentation;
             if ((stringRepresentation = arguments.get(PossibleArgument.bufferMultiplier)) != null) {
-                bufferMultiplier = Integer.parseInt(arguments.get(PossibleArgument.bufferMultiplier));
+                bufferMultiplier = Integer.parseInt(stringRepresentation);
                 
                 if(bufferMultiplier <= 0) {
                     System.out.println("Argument for key " + PossibleArgument.bufferMultiplier.rawValue + " is illegal. Value should be > 0.");
@@ -148,10 +148,10 @@ public class CowLiteMirror {
             System.exit(0);
         }
         
-        Mirror checker = new Mirror(origin, mirror, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
+        Mirror mirror = new Mirror(originDirectory, mirrorDirectory, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
 
-        // Start the timer, which will run the filecheckers.
-        timer = new MirrorSyncTimer(checker, true);
+        // Start the timer, which will run the Mirrors.
+        timer = new MirrorSyncTimer(mirror, true);
 
         // To prevent the application from stopping prematurely...
         CountDownLatch latch = new CountDownLatch(1);

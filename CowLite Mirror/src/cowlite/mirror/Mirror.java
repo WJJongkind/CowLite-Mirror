@@ -92,15 +92,15 @@ public class Mirror {
     private boolean bussy = false;
     
     /**
-     * Lock used to lock the FileChecker checkFiles() method so that it can only be ran serially.
+     * Lock used to lock the Mirror checkFiles() method so that it can only be ran serially.
      */
     private final Lock lock = new ReentrantLock();
     
     // MARK: - Object lifecycle
 
     /**
-     * Instantiates a new FileChecker object and if available, load the library
-     * for this FileChecker.
+     * Instantiates a new Mirror object and if available, load the library
+     * for this Mirror.
      *
      * @param origin File that denotes the path to the source/origin folder.
      * @param mirror File that denotes the path to the mirror-folder.
@@ -473,10 +473,10 @@ public class Mirror {
     }
 
     /**
-     * Returns the interval (in seconds) at which this {@code FileChecker}
+     * Returns the interval (in seconds) at which this {@code Mirror}
      * should be updated.
      *
-     * @return The interval (in seconds) at which this {@code FileChecker}
+     * @return The interval (in seconds) at which this {@code Mirror}
      * should be updated.
      */
     public int getInterval() {
@@ -484,8 +484,8 @@ public class Mirror {
     }
     
     /**
-     * Returns true of the FileChecker is already running.
-     * @return True if the FileChecker is already running, false otherwise.
+     * Returns true of the Mirror is already running.
+     * @return True if the Mirror is already running, false otherwise.
      */
     public boolean isBussy() {
         return bussy;
