@@ -103,27 +103,27 @@ public class Mirror {
      * for this Mirror.
      *
      * @param origin File that denotes the path to the source/origin folder.
-     * @param mirror File that denotes the path to the mirror-folder.
+     * @param target File that denotes the path to the mirror-folder.
      * @param fileService The service which can be used to create, copy & delete files/folders.
      * @param bufferSize The size of the buffer used for file-transfers in megabytes.
      * @param interval The interval at which the file checker should run.
      * @param maxFileSize The maximum size of files that are to be checked.
-     * @throws Exception When the lock-file could not be created or the origin,
-     * mirror or temp_folder are not existing folders.
+     * @throws java.io.IOException When an IO exception occurs.
+     * @throws java.security.NoSuchAlgorithmException When the mirror could not be instantiated.
      */
-    public Mirror(File origin, File mirror, FileService fileService,  int bufferSize, int interval, long maxFileSize) throws Exception {
+    public Mirror(FileSnapshot origin, FileSnapshot target, FileService fileService,  int bufferSize, int interval, long maxFileSize) throws IOException, NoSuchAlgorithmException, IllegalArgumentException  {
         this.bufferSize = bufferSize;
         this.maxFileSize = maxFileSize;
         this.interval = interval;
         this.fileService = fileService;
 
-        if (this.bufferSize < 0.01) {
-            throw new IllegalArgumentException("Buffer multiplier should be atleast 0.01.");
+        if (this.bufferSize < 1) {
+            throw new IllegalArgumentException("Buffer multiplier should be atleast 1.");
         }
 
         // Initialize all FileSnapshots and immediatly update them because we want all subdirectories to be added to the structure
-        this.originSnapshot = new FileSnapshot(Paths.get(origin.getAbsolutePath()));
-        this.mirrorSnapshot = new FileSnapshot(Paths.get(mirror.getAbsolutePath()));
+        this.originSnapshot = origin;
+        this.mirrorSnapshot = target;
         this.mirrorName = makeMirrorName();
 
         if (!this.originSnapshot.isDirectory() || !mirrorSnapshot.isDirectory()) {
@@ -164,7 +164,7 @@ public class Mirror {
      *
      * @throws Exception FileDataReader error.
      */
-    private void loadLibrary() throws Exception {
+    private void loadLibrary() throws IOException {
         if (!new File(getLibraryPath()).exists()) {
             return;
         }
