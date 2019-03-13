@@ -22,7 +22,6 @@ import filedatareader.FileDataReader;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -345,8 +344,10 @@ public class Mirror {
      *
      * @param s The {@code FileSnapshot} to be copied to the mirror.
      */
-    private void copyToMirror(FileSnapshot s) {
+    private void copyToMirror(FileSnapshot s) throws IOException {
         if (s.isDirectory()) {
+            secureDelete(s.getFile().toFile());
+            fileService.createDirectory(s.getFile().toFile());
             for(FileSnapshot child : s.getChildren()) {
                 copyToMirror(child);
             }

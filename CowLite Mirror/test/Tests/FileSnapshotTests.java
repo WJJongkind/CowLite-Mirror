@@ -1,3 +1,5 @@
+package Tests;
+
 /* 
  * Copyright (C) 2019 Wessel Jelle Jongkind.
  *
@@ -42,7 +44,6 @@ public class FileSnapshotTests {
     // MARK: - Constants
     
     private static final class RelativePaths {
-
         public static final String sutRoot = "sut";
         public static final String comparableRoot = "comparable";
         public static final String fileInRoot = "/file1.temp";
