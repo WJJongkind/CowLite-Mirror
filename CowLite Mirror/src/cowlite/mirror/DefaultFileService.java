@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2018 Wessel Jelle Jongkind.
+ * Copyright (C) 2019 Wessel Jelle Jongkind.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -40,14 +40,7 @@ import java.util.LinkedList;
  * @author Wessel Jelle Jongkind
  * @version 2019-03-10 (yyyy-mm-dd)
  */
-public class FileIO {
-
-    /**
-     * The default and minimum size of the buffer. The size of this buffer can
-     * be multiplied by any double, however it is recommended that only whole
-     * numbers are used.
-     */
-    public static final int DEFAULT_BUFFER_SIZE = 1024;
+public class DefaultFileService implements FileService {
 
     /**
      * Copy a file from the given input filepath to the given output filepath.
@@ -59,7 +52,8 @@ public class FileIO {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public static void copy(String source, String target) throws IOException {
+    @Override
+    public void copy(String source, String target) throws IOException {
         copy(new File(source), new File(target));
     }
 
@@ -76,7 +70,8 @@ public class FileIO {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public static void copy(String source, String target, double buff) throws IOException {
+    @Override
+    public void copy(String source, String target, int buff) throws IOException {
         copy(new File(source), new File(target), buff);
     }
 
@@ -90,7 +85,8 @@ public class FileIO {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public static void copy(File source, File target) throws IOException {
+    @Override
+    public void copy(File source, File target) throws IOException {
         copy(source, target, DEFAULT_BUFFER_SIZE);
     }
 
@@ -110,7 +106,8 @@ public class FileIO {
      * @throws java.io.IOException When the file could not be copied due to IO
      * errors.
      */
-    public static void copy(File source, File target, double buff) throws IOException {
+    @Override
+    public void copy(File source, File target, int buff) throws IOException {
         FileInputStream is = null;
         FileOutputStream os = null;
         FileChannel fci = null;
@@ -162,7 +159,8 @@ public class FileIO {
      * @param f Path to the file that should be deleted.
      * @throws java.io.IOException When IO errors occur.
      */
-    public static void delete(File f) throws IOException {
+    @Override
+    public void delete(File f) throws IOException {
         delete(f.getAbsolutePath());
     }
 
@@ -173,7 +171,8 @@ public class FileIO {
      * @param path Path to the file that should be deleted.
      * @throws java.io.IOException When IO errors occur.
      */
-    public static void delete(String path) throws IOException {
+    @Override
+    public void delete(String path) throws IOException {
         delete(Paths.get(path));
     }
 
@@ -184,7 +183,8 @@ public class FileIO {
      * @param path The path that denotes the file/folder that has to be removed.
      * @throws java.io.IOException When IO errors occur.
      */
-    public static void delete(Path path) throws IOException {
+    @Override
+    public void delete(Path path) throws IOException {
         LinkedList<Path> remove = new LinkedList<>();
 
         Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
@@ -212,7 +212,8 @@ public class FileIO {
      *
      * @param path Path to the folder that should be createde.
      */
-    public static void createDirectory(String path) {
+    @Override
+    public void createDirectory(String path) {
         createDirectory(new File(path));
     }
 
@@ -222,7 +223,8 @@ public class FileIO {
      *
      * @param file File that references the folder that should be created.
      */
-    public static void createDirectory(File file) {
+    @Override
+    public void createDirectory(File file) {
         file.mkdirs();
     }
 
@@ -234,7 +236,8 @@ public class FileIO {
      * @param path The path at which the new file should be created.
      * @throws IOException When the file could not be created.
      */
-    public static void createFile(String path) throws IOException {
+    @Override
+    public void createFile(String path) throws IOException {
         createFile(new File(path));
     }
 
@@ -246,7 +249,8 @@ public class FileIO {
      * @param file The file that has to be created.
      * @throws IOException If the file could not be created.
      */
-    public static void createFile(File file) throws IOException {
+    @Override
+    public void createFile(File file) throws IOException {
         createDirectory(file.getParentFile());
         file.createNewFile();
     }

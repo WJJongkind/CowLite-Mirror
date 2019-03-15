@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2018 Wessel Jelle Jongkind.
+ * Copyright (C) 2019 Wessel Jelle Jongkind.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,12 +19,16 @@
 package cowlite.mirror;
 
 import java.io.File;
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Default class for CowLite Mirror. Loads in all settings that were previously
@@ -40,7 +44,7 @@ public class CowLiteMirror {
     /**
      * The timer that is used to start mirror checks.
      */
-    public static FileCheckerTimer timer;
+    public static MirrorSyncTimer timer;
     
     /**
      * This enumeration defines all the possible arguments.
@@ -85,7 +89,7 @@ public class CowLiteMirror {
      * @throws java.lang.Exception When start settings could not be found or
      * loaded.
      */
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         Map<PossibleArgument, String> arguments = new HashMap<>();
         List<String> missingArguments = new ArrayList<>(requiredArguments);
         
@@ -95,31 +99,37 @@ public class CowLiteMirror {
         }
         
         checkMissingArguments(missingArguments);
-
-        File origin = new File(arguments.get(PossibleArgument.origin));
-        if (!origin.exists()) {
-            System.out.println("Specified origin folder does not exist.");
+        
+        FileSnapshot originDirectory;
+        try {
+            originDirectory = new FileSnapshot(new File(arguments.get(PossibleArgument.origin)));
+        } catch(IOException | IllegalArgumentException e) {
+            System.out.println("Specified origin folder does not exist or is inaccessible.");
+            return;
         }
         
-        File mirror = new File(arguments.get(PossibleArgument.mirror));
-        if (!mirror.exists()) {
+        FileSnapshot mirrorDirectory;
+        try {
+            mirrorDirectory = new FileSnapshot(new File(arguments.get(PossibleArgument.mirror)));
+        } catch(IOException | IllegalArgumentException e) {
             System.out.println("Specified mirror folder does not exist.");
+            return;
         }
         
-        int timerInterval = -1;
+        int timerInterval;
         try {
             timerInterval = Integer.parseInt(arguments.get(PossibleArgument.interval));
             
             if (timerInterval <= 0) {
                 System.out.println("Argument for key " + PossibleArgument.interval.rawValue + " is illegal. Value should be > 0.");
-                System.exit(0);
+                return;
             }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.interval.rawValue + " is invalid. Please specify the time in milliseconds.");
-            System.exit(0);
+            return;
         }
         
-        long maxFileSize = -1;
+        long maxFileSize;
         try {
             maxFileSize = Long.parseLong(arguments.get(PossibleArgument.maxSize));
             
@@ -129,14 +139,14 @@ public class CowLiteMirror {
             }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.maxSize.rawValue + " is invalid. Please specify the time in milliseconds.");
-            System.exit(0);
+            return;
         }
         
         int bufferMultiplier = 4;
         try {
             String stringRepresentation;
             if ((stringRepresentation = arguments.get(PossibleArgument.bufferMultiplier)) != null) {
-                bufferMultiplier = Integer.parseInt(arguments.get(PossibleArgument.bufferMultiplier));
+                bufferMultiplier = Integer.parseInt(stringRepresentation);
                 
                 if(bufferMultiplier <= 0) {
                     System.out.println("Argument for key " + PossibleArgument.bufferMultiplier.rawValue + " is illegal. Value should be > 0.");
@@ -145,17 +155,26 @@ public class CowLiteMirror {
             }
         } catch(NumberFormatException e) {
             System.out.println("Argument for key " + PossibleArgument.bufferMultiplier.rawValue + " is invalid. Please specify the time in milliseconds.");
-            System.exit(0);
+            return;
         }
         
-        FileChecker checker = new FileChecker(origin, mirror, bufferMultiplier, timerInterval, maxFileSize);
+        try {
+            Mirror mirror = new Mirror(originDirectory, mirrorDirectory, new DefaultFileService(), bufferMultiplier, timerInterval, maxFileSize);
+            // Start the timer, which will run the Mirrors.
+            timer = new MirrorSyncTimer(mirror, true);
 
-        // Start the timer, which will run the filecheckers.
-        timer = new FileCheckerTimer(checker, true);
-
-        // To prevent the application from stopping prematurely...
-        CountDownLatch latch = new CountDownLatch(1);
-        latch.await();
+            // To prevent the application from stopping prematurely...
+            CountDownLatch latch = new CountDownLatch(1);
+            latch.await();
+        } catch(IOException e) {
+            System.out.println("The origin or target folder is inaccessible.");
+        } catch(IllegalArgumentException e) {
+            System.out.println("The specified origin or target is not a directory.");
+        } catch(NoSuchAlgorithmException e) {
+            System.out.println("The mirror could not be created.");
+        } catch (InterruptedException ex) {
+            System.out.println("Due to an internal error the application couldn't keep running.");
+        }
     }
 
     /**
