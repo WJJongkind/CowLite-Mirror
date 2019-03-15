@@ -320,7 +320,7 @@ public class Mirror {
         try {
             File newFile = new File(mirrorSnapshot.getFile().toString() + getRelativePath(f, originSnapshot.getFile().toString()));
             
-            if(newFile.exists()) {
+            if(newFile.isDirectory() && !f.isDirectory() || !newFile.isDirectory() && f.isDirectory()) {
                 try { fileService.delete(newFile); } catch (IOException e) { /* We dont care if deletion fails, it probably means the file already got deleted or does not exist */}
             }
 
@@ -346,11 +346,7 @@ public class Mirror {
      */
     private void copyToMirror(FileSnapshot s) throws IOException {
         if (s.isDirectory()) {
-            secureDelete(s.getFile().toFile());
-            fileService.createDirectory(s.getFile().toFile());
-            for(FileSnapshot child : s.getChildren()) {
-                copyToMirror(child);
-            }
+            copyToMirror(s.getFile().toFile());
         } else {
             copyToMirror(new File(s.getFile().toString()));
         }
